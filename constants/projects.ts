@@ -18,7 +18,7 @@ export const projects = [
     feedback: false,
     links: {
       live: "https://policylens-ai.vercel.app",
-      github: "https://github.com/DEVJHAWAR11",
+      github: "https://github.com/DEVJHAWAR11/policylens",
     },
   },
   {
@@ -40,7 +40,7 @@ export const projects = [
     feedback: false,
     links: {
       live: "https://realestate-analysis-ml.streamlit.app/",
-      github: "https://github.com/DEVJHAWAR11",
+      github: "https://github.com/DEVJHAWAR11/Real_Estate",
     },
   },
   {
@@ -62,14 +62,14 @@ export const projects = [
     feedback: true,
     links: {
       live: "https://llm-semantic-cache-1.onrender.com/docs",
-      github: "https://github.com/DEVJHAWAR11",
+      github: "https://github.com/DEVJHAWAR11/LLM_Semantic_Cache",
     },
   },
   {
-    title: "DeepKill",
-    slug: "deepkill",
+    title: "ZombieKill",
+    slug: "zombiekill",
     tagline: "A system for detecting and neutralizing malicious processes.",
-    overview: "DeepKill is an intelligent system designed to monitor and terminate unauthorized or harmful processes in real-time. It enhances system security by proactively identifying anomalous behavior.",
+    overview: "ZombieKill is an intelligent system designed to monitor and terminate unauthorized or harmful processes in real-time. It enhances system security by proactively identifying anomalous behavior.",
     features: [
       "Real-time process monitoring",
       "Anomaly detection using ML",
@@ -83,7 +83,7 @@ export const projects = [
     ],
     feedback: false,
     links: {
-      github: "https://github.com/DEVJHAWAR11",
+      github: "https://github.com/DEVJHAWAR11/ZombieKill",
     },
   },
   {
@@ -104,7 +104,7 @@ export const projects = [
     ],
     feedback: true,
     links: {
-      github: "https://github.com/DEVJHAWAR11",
+      github: "https://github.com/DEVJHAWAR11/LocalSqueeze",
     },
   },
   {
@@ -125,7 +125,7 @@ export const projects = [
     ],
     feedback: false,
     links: {
-      github: "https://github.com/DEVJHAWAR11",
+      github: "https://github.com/DEVJHAWAR11/LocalSqueeze",
     },
   }
 ];
