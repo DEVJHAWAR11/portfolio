@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 import { siteConfig } from "@/config/site";
 import { Button } from "./ui/button";
