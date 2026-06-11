@@ -92,6 +92,23 @@ export function SiteHeader() {
                   <span className="sr-only">GitHub</span>
                 </Link>
               </Button>
+
+              {/* LinkedIn */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full transition-all hover:scale-105 hover:bg-muted"
+                asChild
+              >
+                <Link 
+                  href={siteConfig.links.linkedin} 
+                  target="_blank" 
+                  rel="noreferrer"
+                >
+                  <Icons.linkedin className="h-[18px] w-[18px]" />
+                  <span className="sr-only">LinkedIn</span>
+                </Link>
+              </Button>
             </div>
           </div>
         </div>

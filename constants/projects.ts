@@ -104,7 +104,7 @@ export const projects = [
     ],
     feedback: true,
     links: {
-      github: "https://github.com/DEVJHAWAR11/LocalSqueeze",
+      github: "https://github.com/DEVJHAWAR11/pytorch-transformer-from-scratch",
     },
   },
   {
