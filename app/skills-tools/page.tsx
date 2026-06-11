@@ -17,10 +17,10 @@ const SkillsToolsPage = () => {
           Learned by coding all night and debugging all day!
         </PageHeaderHeading>
         <PageHeaderDescription>
-          As a full-stack Software Engineer, I specialize in building scalable
-          web applications using modern technologies such as Next.js, React, and
-          Tailwind CSS. I'm also expanding my expertise into DevOps and cloud
-          practices to create efficient, maintainable, robust web solutions.
+          As an AI and Backend Engineer, I specialize in building intelligent, scalable systems
+          using modern technologies such as Python, FastAPI, and PyTorch. I am continuously 
+          expanding my expertise into machine learning, cloud architecture, and distributed 
+          system design to create robust, high-performance solutions.
         </PageHeaderDescription>
       </PageHeader>
 
