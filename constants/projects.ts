@@ -22,25 +22,25 @@ export const projects = [
     },
   },
   {
-    title: "Real Estate Platform",
-    slug: "real-estate",
-    tagline: "A comprehensive real estate platform for property search and listing.",
-    overview: "This platform connects buyers, sellers, and agents by providing a centralized hub for property listings. It simplifies the property search process with advanced filtering and real-time updates.",
+    title: "Klypse AI",
+    slug: "klypse",
+    tagline: "An AI-powered YouTube extension bot.",
+    overview: "Klypse AI is a powerful browser extension that integrates with YouTube to provide AI-driven insights, summaries, and interactions directly within the video player. It helps users quickly extract information from long videos.",
     features: [
-      "Advanced search and filtering",
-      "Property listing management for agents",
-      "Interactive map view",
-      "Real-time notifications"
+      "Automated video summarization",
+      "Interactive chatbot for video context",
+      "Seamless YouTube DOM integration",
+      "Real-time processing"
     ],
-    techStack: ["Python", "Streamlit", "Scikit-learn", "Pandas", "NumPy", "Machine Learning"],
+    techStack: ["React", "TypeScript", "Tailwind CSS", "Node.js", "AI APIs"],
     challenges: [
-      "Implementing efficient geospatial queries",
-      "Building a scalable real-time notification system"
+      "Integrating smoothly with YouTube's dynamic DOM",
+      "Managing state across extension content scripts and background service workers"
     ],
-    feedback: false,
+    feedback: true,
     links: {
-      live: "https://realestate-analysis-ml.streamlit.app/",
-      github: "https://github.com/DEVJHAWAR11/Real_Estate",
+      live: "https://klypse-ai-youtube-extension-bot.netlify.app/",
+      github: "http://github.com/DEVJHAWAR11/Klypse",
     },
   },
   {
@@ -66,24 +66,25 @@ export const projects = [
     },
   },
   {
-    title: "ZombieKill",
-    slug: "zombiekill",
-    tagline: "A system for detecting and neutralizing malicious processes.",
-    overview: "ZombieKill is an intelligent system designed to monitor and terminate unauthorized or harmful processes in real-time. It enhances system security by proactively identifying anomalous behavior.",
+    title: "Real Estate Platform",
+    slug: "real-estate",
+    tagline: "A comprehensive real estate platform for property search and listing.",
+    overview: "This platform connects buyers, sellers, and agents by providing a centralized hub for property listings. It simplifies the property search process with advanced filtering and real-time updates.",
     features: [
-      "Real-time process monitoring",
-      "Anomaly detection using ML",
-      "Automated threat termination",
-      "Detailed security logs"
+      "Advanced search and filtering",
+      "Property listing management for agents",
+      "Interactive map view",
+      "Real-time notifications"
     ],
-    techStack: ["C++", "System APIs"],
+    techStack: ["Python", "Streamlit", "Scikit-learn", "Pandas", "NumPy", "Machine Learning"],
     challenges: [
-      "Minimizing false positives",
-      "Ensuring low overhead on system resources"
+      "Implementing efficient geospatial queries",
+      "Building a scalable real-time notification system"
     ],
     feedback: false,
     links: {
-      github: "https://github.com/DEVJHAWAR11/ZombieKill",
+      live: "https://realestate-analysis-ml.streamlit.app/",
+      github: "https://github.com/DEVJHAWAR11/Real_Estate",
     },
   },
   {
@@ -105,6 +106,27 @@ export const projects = [
     feedback: true,
     links: {
       github: "https://github.com/DEVJHAWAR11/pytorch-transformer-from-scratch",
+    },
+  },
+  {
+    title: "ZombieKill",
+    slug: "zombiekill",
+    tagline: "A system for detecting and neutralizing malicious processes.",
+    overview: "ZombieKill is an intelligent system designed to monitor and terminate unauthorized or harmful processes in real-time. It enhances system security by proactively identifying anomalous behavior.",
+    features: [
+      "Real-time process monitoring",
+      "Anomaly detection using ML",
+      "Automated threat termination",
+      "Detailed security logs"
+    ],
+    techStack: ["C++", "System APIs"],
+    challenges: [
+      "Minimizing false positives",
+      "Ensuring low overhead on system resources"
+    ],
+    feedback: false,
+    links: {
+      github: "https://github.com/DEVJHAWAR11/ZombieKill",
     },
   },
   {
