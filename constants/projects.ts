@@ -32,7 +32,7 @@ export const projects = [
       "Seamless YouTube DOM integration",
       "Real-time processing"
     ],
-    techStack: ["React", "TypeScript", "Tailwind CSS", "Node.js", "AI APIs"],
+    techStack: ["Python", "LangChain", "FastAPI", "RAG", "Docker"],
     challenges: [
       "Integrating smoothly with YouTube's dynamic DOM",
       "Managing state across extension content scripts and background service workers"
