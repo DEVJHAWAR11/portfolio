@@ -11,7 +11,7 @@ const AboutMePage = () => {
       <PageHeader>
         <PageHeaderHeading>About Dev</PageHeaderHeading>
         <PageHeaderHeading className="mt-2 text-muted-foreground">
-          Turning complex problems into scalable AI systems.
+          Here's a closer look at who I am and what I do.
         </PageHeaderHeading>
         <PageHeaderDescription>
           I specialize in designing intelligent, production-ready backend systems that transform data into meaningful outcomes. What began as an interest in solving problems through code has evolved into building scalable applications powered by machine learning and modern backend architecture.
