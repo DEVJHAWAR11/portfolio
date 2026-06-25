@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link, { LinkProps } from "next/link";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, ExternalLink } from "lucide-react";
+import { SiLeetcode, SiCodeforces, SiCodechef } from "react-icons/si";
 
 import { docsConfig } from "@/config/docs";
 import { cn } from "@/lib/utils";
@@ -150,6 +151,54 @@ export function MobileNav() {
                   </div>
                 </div>
               ))}
+              {/* Coding Profiles */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 px-1">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border/50 to-transparent" />
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    Coding Profiles
+                  </h3>
+                  <div className="h-px flex-1 bg-gradient-to-l from-transparent via-border/50 to-transparent" />
+                </div>
+                <div className="space-y-1">
+                  <Link
+                    href={siteConfig.links.leetcode}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between rounded-lg border border-border/30 bg-background/50 px-3 py-2.5 text-sm transition-all hover:border-[#FFA116]/40 hover:bg-[#FFA116]/5"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <SiLeetcode className="h-4 w-4" style={{ color: '#FFA116' }} />
+                      <span className="font-medium">LeetCode</span>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  <Link
+                    href={siteConfig.links.codeforces}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between rounded-lg border border-border/30 bg-background/50 px-3 py-2.5 text-sm transition-all hover:border-[#1F8ACB]/40 hover:bg-[#1F8ACB]/5"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <SiCodeforces className="h-4 w-4" style={{ color: '#1F8ACB' }} />
+                      <span className="font-medium">Codeforces</span>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                  <Link
+                    href={siteConfig.links.codechef}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between rounded-lg border border-border/30 bg-background/50 px-3 py-2.5 text-sm transition-all hover:border-[#5B4638]/40 hover:bg-[#5B4638]/5"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <SiCodechef className="h-4 w-4" style={{ color: '#5B4638' }} />
+                      <span className="font-medium">CodeChef</span>
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
 

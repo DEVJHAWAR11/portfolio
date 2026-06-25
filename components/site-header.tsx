@@ -11,6 +11,8 @@ import { MobileNav } from "./mobile-nav";
 import { CommandMenu } from "./command-menu";
 import { Icons } from "./icons";
 
+import { CodingProfiles } from "./coding-profiles";
+
 export function SiteHeader() {
   const [mounted, setMounted] = useState(false);
   const [time, setTime] = useState(new Date());
@@ -75,6 +77,9 @@ export function SiteHeader() {
                   <ModeSwitcher className="h-[18px] w-[18px]" />
                 </div>
               </Button>
+
+              {/* Coding Profiles */}
+              <CodingProfiles />
 
               {/* GitHub */}
               <Button

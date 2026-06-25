@@ -30,6 +30,9 @@ export const siteConfig = {
     resume: 'https://devjhawar.netlify.app/',
     email: 'mailto:dev.jhawar.cs@gmail.com',
     githubUsername: 'DEVJHAWAR11',
+    leetcode: 'https://leetcode.com/u/devjhawar/',
+    codeforces: 'https://codeforces.com/profile/devjhawar11',
+    codechef: 'https://www.codechef.com/users/devjhawar11',
   },
 };
 

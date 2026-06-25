@@ -3,10 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { type DialogProps } from "@radix-ui/react-dialog";
-import { Circle, File, Laptop, Moon, Sun } from "lucide-react";
+import { Circle, Code2, File, Laptop, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
  
 import { docsConfig } from "@/config/docs";
+import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 import {
   CommandDialog,
@@ -104,6 +105,36 @@ export function CommandMenu({ ...props }: DialogProps) {
               ))}
             </CommandGroup>
           ))}
+          <CommandSeparator />
+          <CommandGroup heading="Coding Profiles">
+            <CommandItem
+              value="LeetCode"
+              onSelect={() => {
+                runCommand(() => window.open(siteConfig.links.leetcode, "_blank"));
+              }}
+            >
+              <Code2 className="mr-2 h-4 w-4" />
+              LeetCode
+            </CommandItem>
+            <CommandItem
+              value="Codeforces"
+              onSelect={() => {
+                runCommand(() => window.open(siteConfig.links.codeforces, "_blank"));
+              }}
+            >
+              <Code2 className="mr-2 h-4 w-4" />
+              Codeforces
+            </CommandItem>
+            <CommandItem
+              value="CodeChef"
+              onSelect={() => {
+                runCommand(() => window.open(siteConfig.links.codechef, "_blank"));
+              }}
+            >
+              <Code2 className="mr-2 h-4 w-4" />
+              CodeChef
+            </CommandItem>
+          </CommandGroup>
           <CommandSeparator />
           <CommandGroup heading="Theme">
             <CommandItem onSelect={() => runCommand(() => setTheme("light"))}>
