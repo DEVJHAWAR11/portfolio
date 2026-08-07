@@ -1,5 +1,27 @@
 export const projects = [
   {
+    title: "PennyPilot",
+    slug: "pennypilot",
+    tagline: "An Expense Tracker Telegram Bot.",
+    overview: "PennyPilot is a Telegram bot designed to manage and track your daily expenses seamlessly. By leveraging natural language processing through LangGraph and an MCP Server, it allows users to log expenses, check balances, and generate summaries using simple conversational commands.",
+    features: [
+      "Natural language expense logging",
+      "Interactive balance checking and summaries",
+      "Seamless integration with Telegram",
+      "Robust data persistence with PostgreSQL"
+    ],
+    techStack: ["Python", "LangGraph", "MCP Server", "PostgreSQL", "Telegram API"],
+    challenges: [
+      "Handling complex conversational flows",
+      "Ensuring robust state management with PostgreSQL"
+    ],
+    feedback: false,
+    links: {
+      video: "http://youtube.com/watch?v=383-_fI73e0",
+      github: "https://github.com/DEVJHAWAR11/PennyPilot",
+    },
+  },
+  {
     title: "PolicyLens",
     slug: "policylens",
     tagline: "An AI-powered tool to analyze and summarize complex policies.",
