@@ -8,7 +8,10 @@ export const projects = [
       "Natural language expense logging",
       "Interactive balance checking and summaries",
       "Seamless integration with Telegram",
-      "Robust data persistence with PostgreSQL"
+      "Robust data persistence with PostgreSQL",
+      "Photo receipt transcription support",
+      "Audio chat support for hands-free logging",
+      "Monthly transaction PDF and CSV report generation"
     ],
     techStack: ["Python", "LangGraph", "MCP Server", "PostgreSQL", "Telegram API"],
     challenges: [
@@ -149,6 +152,32 @@ export const projects = [
     feedback: false,
     links: {
       github: "https://github.com/DEVJHAWAR11/ZombieKill",
+    },
+  },
+  {
+    title: "Transaction Fraud Detector",
+    slug: "transaction-fraud-detector",
+    tagline: "An end-to-end MLOps pipeline for detecting fraudulent credit card transactions.",
+    overview: "An end-to-end MLOps project covering the full lifecycle from raw data to a served model with monitoring, automated retraining, and deployment gating. Built in 10 stages, it includes data validation, XGBoost training with MLflow experiment tracking, automated model promotion gating, REST API serving with FastAPI, shadow mode, canary deployment simulation, A/B testing, drift detection, and automated retraining pipelines.",
+    features: [
+      "XGBoost model training with MLflow experiment tracking",
+      "Automated model promotion gating with champion/challenger comparison",
+      "REST API serving with FastAPI and Pydantic validation",
+      "Shadow mode, canary deployment, and A/B testing with statistical significance",
+      "Data drift detection with Evidently and rolling performance monitoring",
+      "Automated retraining pipeline triggered by drift or degradation",
+      "CI/CD with GitHub Actions",
+      "Dockerized deployment"
+    ],
+    techStack: ["Python", "XGBoost", "MLflow", "FastAPI", "Evidently", "Docker", "Scikit-learn", "GitHub Actions"],
+    challenges: [
+      "Handling extreme class imbalance in fraud detection",
+      "Building a robust promotion gate with threshold checks",
+      "Implementing canary and shadow deployment strategies"
+    ],
+    feedback: true,
+    links: {
+      github: "https://github.com/DEVJHAWAR11/Transaction-Fraud-Detector",
     },
   },
   {
