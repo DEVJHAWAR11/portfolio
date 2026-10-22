@@ -1,0 +1,128 @@
+---
+import { getCollection } from 'astro:content';
+import ProjectCard from './ProjectCard.astro';
+
+const all = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+const featured = all.filter((p) => p.data.featured);
+const archive = all.filter((p) => !p.data.featured);
+---
+
+<div class="grid blocks">
+  {featured.map((p, i) => <ProjectCard p={p} big={i === 0} eager={i === 0} />)}
+</div>
+
+{
+  archive.length > 0 && (
+    <details class="more">
+      <summary class="btn">
+        More projects <span class="n">{archive.length}</span>
+        <svg class="chev" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+          <path d="M2 4.5 6 8.5 10 4.5" fill="none" stroke="currentColor" stroke-width="1.6" />
+        </svg>
+      </summary>
+      <ul class="list blk">
+        {archive.map((p) => (
+          <li>
+            <a href={`/projects/${p.id}`}>
+              <span class="t">{p.data.title}</span>
+              <span class="d">{p.data.tagline}</span>
+              <span class="mono s">{p.data.stack.slice(0, 3).join(', ')}</span>
+            </a>
+          </li>
+        ))}
+        <li class="foot mono">
+          Everything else is on{' '}
+          <a class="link" href="https://github.com/DEVJHAWAR11?tab=repositories" target="_blank" rel="noopener">
+            github.com/DEVJHAWAR11
+          </a>
+        </li>
+      </ul>
+    </details>
+  )
+}
+
+<style>
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid > :global(.big) {
+    grid-column: 1 / -1;
+  }
+  .more {
+    margin-top: 1.5rem;
+  }
+  summary {
+    list-style: none;
+    width: fit-content;
+    background: var(--panel);
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .n {
+    padding: 0.1rem 0.4rem;
+    background: var(--fg);
+    color: var(--bg);
+    font-size: 0.7rem;
+  }
+  summary:hover .n {
+    background: var(--bg);
+    color: var(--fg);
+  }
+  .chev {
+    transition: rotate 0.2s var(--ease);
+  }
+  .more[open] .chev {
+    rotate: 180deg;
+  }
+  .list {
+    margin: -1px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .list li + li {
+    border-top: 1px solid var(--line);
+  }
+  .list a {
+    display: grid;
+    grid-template-columns: 15rem 1fr 13rem;
+    gap: 1.25rem;
+    align-items: baseline;
+    padding: 0.85rem 1.1rem;
+    transition: background 0.15s;
+  }
+  .list a:hover {
+    background: var(--accent-soft);
+  }
+  .t {
+    font: 700 1.05rem/1.2 var(--display);
+    font-stretch: 85%;
+  }
+  .list a:hover .t {
+    color: var(--accent);
+  }
+  .d {
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  .s {
+    color: var(--faint);
+    text-align: right;
+  }
+  .foot {
+    padding: 0.85rem 1.1rem;
+    color: var(--muted);
+  }
+  @media (max-width: 760px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+    .list a {
+      grid-template-columns: 1fr;
+      gap: 0.2rem;
+    }
+    .s {
+      text-align: left;
+    }
+  }
+</style>

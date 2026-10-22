@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://devjhawar.com/sitemap.xml

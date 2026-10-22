@@ -1,0 +1,27 @@
+# group: which card it sits in. icon: simple-icons slug (or a custom one in Icon.astro).
+# match: names as they appear in project "stack" lists, used to count where each skill was used.
+- { id: langgraph, name: LangGraph, group: Agentic AI, icon: langgraph, match: [LangGraph] }
+- { id: langchain, name: LangChain, group: Agentic AI, icon: langchain, match: [LangChain] }
+- { id: mcp, name: MCP, group: Agentic AI, icon: modelcontextprotocol, match: [MCP, MCP Server, FastMCP] }
+- { id: groq, name: Groq / LLM APIs, group: Agentic AI, icon: groq, match: [Groq, Groq LLaMA, OpenAI API, Gemini] }
+- { id: ollama, name: Ollama, group: Agentic AI, icon: ollama, match: [Ollama] }
+- { id: rag, name: RAG pipelines, group: RAG & Retrieval, icon: rag, match: [RAG] }
+- { id: pgvector, name: pgvector, group: RAG & Retrieval, icon: postgresql, match: [pgvector] }
+- { id: faiss, name: FAISS, group: RAG & Retrieval, icon: meta, match: [FAISS] }
+- { id: jina, name: Jina embeddings, group: RAG & Retrieval, icon: embed, match: [Jina embeddings, Jina] }
+- { id: hf, name: Hugging Face, group: RAG & Retrieval, icon: huggingface, match: [Hugging Face, Transformers] }
+- { id: pytorch, name: PyTorch, group: Machine Learning, icon: pytorch, match: [PyTorch] }
+- { id: tensorflow, name: TensorFlow, group: Machine Learning, icon: tensorflow, match: [TensorFlow, Keras] }
+- { id: sklearn, name: scikit-learn, group: Machine Learning, icon: scikitlearn, match: [scikit-learn, Scikit-learn] }
+- { id: pandas, name: Pandas, group: Machine Learning, icon: pandas, match: [Pandas] }
+- { id: numpy, name: NumPy, group: Machine Learning, icon: numpy, match: [NumPy] }
+- { id: python, name: Python, group: Backend, icon: python, match: [Python] }
+- { id: fastapi, name: FastAPI, group: Backend, icon: fastapi, match: [FastAPI] }
+- { id: postgres, name: PostgreSQL, group: Backend, icon: postgresql, match: [Postgres, PostgreSQL, Supabase] }
+- { id: redis, name: Redis, group: Backend, icon: redis, match: [Redis] }
+- { id: cpp, name: C++, group: Backend, icon: cplusplus, match: [C++] }
+- { id: docker, name: Docker, group: Infra & Ops, icon: docker, match: [Docker] }
+- { id: aws, name: AWS, group: Infra & Ops, icon: aws, match: [AWS] }
+- { id: actions, name: GitHub Actions, group: Infra & Ops, icon: githubactions, match: [GitHub Actions] }
+- { id: otel, name: OpenTelemetry, group: Infra & Ops, icon: opentelemetry, match: [OpenTelemetry] }
+- { id: linux, name: Linux, group: Infra & Ops, icon: linux, match: [Linux] }

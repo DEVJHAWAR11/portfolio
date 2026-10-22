@@ -1,0 +1,160 @@
+---
+// Not found, handled the way an agent handles a failed tool call: retry with backoff, then give up and say so.
+// The retries are real requests for the same path; the suggestion is the closest real page by spelling.
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import { sections } from '@/lib/sections';
+
+const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+const routes = [
+  ...projects.map((p) => ({ path: `/projects/${p.id}`, title: p.data.title })),
+  ...sections.map((s) => ({ path: `/#${s.id}`, title: s.title })),
+  { path: '/status', title: 'Status' },
+];
+---
+
+<Base title="Page not found, by Dev Jhawar" description="This page doesn't exist.">
+  <article data-routes={JSON.stringify(routes)}>
+    <p class="tag">Error 404</p>
+    <h1>Not found</h1>
+    <p class="lede">Nothing lives at <code class="mono" data-path>this address</code>. Retrying, in case it was a blip.</p>
+
+    <ol class="log mono blk" data-log aria-live="polite"></ol>
+
+    <div class="next" data-next hidden>
+      <p data-guess></p>
+      <div class="links">
+        <a class="btn solid" href="/">Go home</a>
+        <a class="btn" href="/#projects">Projects</a>
+        <button class="btn" type="button" data-palette>Search the site</button>
+      </div>
+    </div>
+  </article>
+</Base>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-routes]');
+  if (root) {
+    const routes: { path: string; title: string }[] = JSON.parse(root.dataset.routes!);
+    const log = root.querySelector('[data-log]')!;
+    const path = location.pathname;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
+    root.querySelector('[data-path]')!.textContent = path;
+    const line = (html: string, cls = '') => log.insertAdjacentHTML('beforeend', `<li class="${cls}">${html}</li>`);
+
+    // Closest page by letter trigrams, the same fuzzy match the search palette uses.
+    const grams = (s: string) => {
+      const t = ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+      return new Set(Array.from({ length: Math.max(t.length - 2, 0) }, (_, i) => t.slice(i, i + 3)));
+    };
+    const dice = (a: Set<string>, b: Set<string>) => (2 * [...a].filter((g) => b.has(g)).length) / (a.size + b.size || 1);
+
+    async function run() {
+      const tries = 3;
+      for (let i = 1; i <= tries; i++) {
+        const t0 = performance.now();
+        let status = 0;
+        try {
+          status = (await fetch(path, { method: 'HEAD', cache: 'no-store' })).status;
+        } catch {}
+        const ms = Math.round(performance.now() - t0);
+        line(`GET ${esc(path)} <b>${status || 'failed'}</b> <span>${ms} ms</span>`, status === 404 ? 'fail' : '');
+        if (status && status < 400) {
+          line('It answered this time. Reloading.', 'ok');
+          setTimeout(() => location.reload(), 600);
+          return;
+        }
+        if (i < tries) {
+          // Exponential backoff with jitter: 400 ms, then 800 ms, each plus up to 150 ms of noise.
+          const base = 400 * 2 ** (i - 1);
+          const jitter = Math.round(Math.random() * 150);
+          line(`retry ${i} of ${tries - 1} in ${base + jitter} ms <span>(${base} backoff + ${jitter} jitter)</span>`, 'wait');
+          await new Promise((r) => setTimeout(r, reduce ? 0 : base + jitter));
+        }
+      }
+      line(`Gave up after ${tries} attempts. This page doesn't exist.`, 'end');
+
+      const want = grams(path.split('/').filter(Boolean).join(' '));
+      const best = routes.map((r) => ({ r, s: Math.max(dice(want, grams(r.path)), dice(want, grams(r.title))) })).sort((a, b) => b.s - a.s)[0];
+      const guess = root!.querySelector('[data-guess]')!;
+      guess.innerHTML =
+        best && best.s >= 0.3
+          ? `Did you mean <a href="${best.r.path}">${esc(best.r.title)}</a>?`
+          : 'Try one of these instead.';
+      root!.querySelector<HTMLElement>('[data-next]')!.hidden = false;
+    }
+    run();
+  }
+</script>
+
+<style>
+  article {
+    padding: 5rem 0 2rem;
+    max-width: 48rem;
+  }
+  .tag {
+    margin: 0 0 1.2rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(3.4rem, 11vw, 8rem);
+    line-height: 0.85;
+  }
+  .lede {
+    margin: 1.4rem 0 1.6rem;
+    font-size: 1.15rem;
+    color: var(--muted);
+  }
+  .lede code {
+    padding: 0.05em 0.35em;
+    border: 1px solid var(--edge);
+    font-size: 0.85em;
+    color: var(--fg);
+    overflow-wrap: anywhere;
+  }
+  .log {
+    margin: 0;
+    padding: 1rem 1.2rem;
+    min-height: 9rem;
+    list-style: none;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .log :global(li) {
+    overflow-wrap: anywhere;
+  }
+  .log :global(b) {
+    font-weight: 600;
+  }
+  .log :global(span) {
+    color: var(--faint);
+  }
+  .log :global(.fail b) {
+    color: var(--fail);
+  }
+  .log :global(.wait) {
+    color: var(--pend);
+  }
+  .log :global(.ok) {
+    color: var(--ok);
+  }
+  .log :global(.end) {
+    margin-top: 0.3rem;
+    color: var(--fg);
+  }
+  .next p {
+    margin: 1.6rem 0 1rem;
+    font-size: 1.1rem;
+  }
+  .next :global(a:not(.btn)) {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+</style>

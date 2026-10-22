@@ -1,0 +1,96 @@
+---
+import Portrait from './Portrait.astro';
+import ResearchGrid from '@/components/ResearchGrid/ResearchGrid.astro';
+import profile from '@/data/profile.json';
+
+const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'].includes(l.label));
+---
+
+<section class="hero" id="hello">
+  <div class="top">
+    <div class="copy">
+      <p class="hi">Hi, I'm Dev Jhawar.</p>
+      <h1>I build AI agents and the backend behind them.</h1>
+      <p class="lede">
+        Retrieval that cites its sources, agents with real state machines, and queues that survive a bad day. Lately
+        I've also been sending fixes upstream to Kubeflow, Prefect and Docling.
+      </p>
+      <div class="cta">
+        <a class="btn solid" href="#contact">Get in touch</a>
+        <a class="btn" href="#projects">See projects</a>
+      </div>
+      <p class="mono socials">
+        {
+          socials.map((l) => (
+            <a class="link" href={l.href} target="_blank" rel="noopener">
+              {l.label}
+            </a>
+          ))
+        }
+      </p>
+    </div>
+
+    <div class="art">
+      <Portrait />
+    </div>
+  </div>
+
+  <ResearchGrid />
+</section>
+
+<style>
+  .hero {
+    padding-top: 4rem;
+  }
+  .top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    gap: 4rem;
+    align-items: center;
+    margin-bottom: 4rem;
+  }
+  .hi {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(3rem, 6.6vw, 5.6rem);
+    line-height: 0.88;
+  }
+  .lede {
+    max-width: 36rem;
+    margin: 1.6rem 0 2rem;
+    font-size: 1.12rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .socials {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+    margin: 1.6rem 0 0;
+  }
+  .art {
+    width: 100%;
+    max-width: 30rem;
+    justify-self: end;
+  }
+  @media (max-width: 860px) {
+    .top {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+    }
+    .art {
+      justify-self: center;
+      max-width: 22rem;
+    }
+  }
+</style>

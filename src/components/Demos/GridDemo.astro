@@ -1,0 +1,404 @@
+---
+// GridMind in miniature: every cell runs its own agent loop (plan, search, read if thin, answer, retry at most twice).
+// The companies, answers and sources are invented; the paths each cell takes are scripted.
+type Step = [node: 'plan' | 'search' | 'read' | 'answer' | 'check', note: string];
+interface Cell {
+  answer: string;
+  conf: 'high' | 'medium' | 'low' | 'none';
+  sources: number;
+  steps: Step[];
+}
+
+const rows = ['Northwind Labs', 'Bluefin Analytics', 'Quill & Co'];
+const cols = ['What do they sell?', 'Where is HQ?'];
+
+const quick = (q: string, answer: string): Cell => ({
+  answer,
+  conf: 'high',
+  sources: 3,
+  steps: [
+    ['plan', `2 queries: "${q}", "${q} official site"`],
+    ['search', '8 results from Tavily + DuckDuckGo'],
+    ['answer', 'snippets are enough, no pages read'],
+    ['check', 'cited URLs match retrieved sources'],
+  ],
+});
+const read = (q: string, answer: string): Cell => ({
+  answer,
+  conf: 'medium',
+  sources: 2,
+  steps: [
+    ['plan', `2 queries: "${q}", "${q} about"`],
+    ['search', '6 results, snippets are thin'],
+    ['read', 'fetched 2 pages (SSRF-guarded)'],
+    ['answer', 'answer drafted from page text'],
+    ['check', 'cited URLs match retrieved sources'],
+  ],
+});
+
+const cells: Cell[][] = [
+  [quick('Northwind Labs products', 'Warehouse robots for small retailers'), read('Northwind Labs headquarters', 'Pune, India')],
+  [
+    read('Bluefin Analytics product', 'Dashboards for fishing-fleet fuel use'),
+    {
+      answer: 'Lisbon, Portugal',
+      conf: 'low',
+      sources: 1,
+      steps: [
+        ['plan', '2 queries: "Bluefin Analytics HQ", "Bluefin Analytics office"'],
+        ['search', '5 results, mostly a different Bluefin'],
+        ['read', 'fetched 2 pages'],
+        ['answer', 'not sufficient: sources disagree'],
+        ['plan', 'retry 1 of 2, feedback: "need the company\'s own page"'],
+        ['search', '4 results'],
+        ['read', 'fetched the company contact page'],
+        ['answer', 'one source only, marked low confidence'],
+        ['check', 'cited URL matches retrieved source'],
+      ],
+    },
+  ],
+  [
+    quick('Quill & Co products', 'Refillable fountain-pen ink'),
+    {
+      answer: 'Not enough evidence',
+      conf: 'none',
+      sources: 0,
+      steps: [
+        ['plan', '2 queries: "Quill & Co HQ", "Quill and Co address"'],
+        ['search', '7 results, all for other companies'],
+        ['read', 'fetched 2 pages, neither mentions it'],
+        ['answer', 'not sufficient'],
+        ['plan', 'retry 1 of 2, feedback: "try the registry name"'],
+        ['search', '3 results'],
+        ['answer', 'not sufficient'],
+        ['plan', 'retry 2 of 2, feedback: "try press mentions"'],
+        ['search', '2 results'],
+        ['answer', 'still not sufficient, stop and say so'],
+      ],
+    },
+  ],
+];
+const nodes = [
+  ['plan', 'Plan queries'],
+  ['search', 'Search'],
+  ['read', 'Read pages'],
+  ['answer', 'Answer'],
+  ['check', 'Check citations'],
+];
+---
+
+<div class="demo grid" data-grid={JSON.stringify(cells)}>
+  <div class="sheet">
+    <div class="bar">
+      <p class="mono lbl">3 companies × 2 questions, 3 workers</p>
+      <button type="button" class="btn sm solid" id="g-run">Run all cells</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          {cols.map((c) => <th class="mono">{c}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {
+          rows.map((r, i) => (
+            <tr>
+              <th>{r}</th>
+              {cols.map((_, j) => (
+                <td>
+                  <button type="button" class="cell" data-r={i} data-c={j} aria-label={`${r}, ${cols[j]}`}>
+                    <span class="st mono">idle</span>
+                    <span class="ans" />
+                  </button>
+                </td>
+              ))}
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="trace">
+    <p class="mono lbl" id="g-title">Click a cell to watch its agent</p>
+    <ol class="nodes">
+      {
+        nodes.map(([id, label]) => (
+          <li data-node={id}>
+            <span>{label}</span>
+          </li>
+        ))
+      }
+    </ol>
+    <p class="mono retry" id="g-retry"></p>
+    <ol class="log mono" id="g-log" aria-live="polite"></ol>
+  </div>
+</div>
+
+<script>
+  type Step = [string, string];
+  interface Cell {
+    answer: string;
+    conf: string;
+    sources: number;
+    steps: Step[];
+  }
+  const root = document.querySelector<HTMLElement>('[data-grid]');
+  if (root) {
+    const cells: Cell[][] = JSON.parse(root.dataset.grid!);
+    const btns = [...root.querySelectorAll<HTMLButtonElement>('.cell')];
+    const runAll = root.querySelector<HTMLButtonElement>('#g-run')!;
+    const title = root.querySelector('#g-title')!;
+    const log = root.querySelector('#g-log')!;
+    const retry = root.querySelector('#g-retry')!;
+    const nodeEls = [...root.querySelectorAll<HTMLElement>('[data-node]')];
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, reduce ? 0 : ms));
+
+    // Progress per cell, so the trace can be shown for any cell, finished or still running.
+    const done = new Map<HTMLButtonElement, number>();
+    let watching: HTMLButtonElement | null = null;
+    let runs = 0;
+
+    const cellOf = (b: HTMLButtonElement) => cells[Number(b.dataset.r)][Number(b.dataset.c)];
+    const label = (b: HTMLButtonElement) => b.getAttribute('aria-label')!;
+
+    function showTrace(b: HTMLButtonElement) {
+      watching = b;
+      btns.forEach((x) => x.classList.toggle('sel', x === b));
+      const c = cellOf(b);
+      const n = done.get(b) ?? 0;
+      title.textContent = label(b);
+      const steps = c.steps.slice(0, n);
+      log.innerHTML = steps.map(([node, note]) => `<li><b>${node}</b> ${note}</li>`).join('');
+      if (n === c.steps.length) {
+        log.innerHTML += `<li class="end"><b>result</b> ${c.answer} (${c.conf === 'none' ? 'no answer' : `${c.conf} confidence`}, ${c.sources} source${c.sources === 1 ? '' : 's'})</li>`;
+      }
+      const cur = steps.at(-1)?.[0];
+      nodeEls.forEach((el) => {
+        el.classList.toggle('seen', steps.some(([s]) => s === el.dataset.node));
+        el.classList.toggle('now', n < c.steps.length && el.dataset.node === cur);
+      });
+      const retries = steps.filter(([, note]) => note.startsWith('retry')).length;
+      retry.textContent = retries ? `↺ retried ${retries} of 2 times` : '';
+    }
+
+    async function runCell(b: HTMLButtonElement) {
+      const c = cellOf(b);
+      const st = b.querySelector('.st')!;
+      const ans = b.querySelector('.ans')!;
+      b.dataset.state = 'running';
+      ans.textContent = '';
+      for (let i = 1; i <= c.steps.length; i++) {
+        done.set(b, i);
+        st.textContent = c.steps[i - 1][0];
+        if (watching === b) showTrace(b);
+        await wait(420);
+      }
+      b.dataset.state = c.conf;
+      st.textContent = c.conf === 'none' ? 'no answer' : `${c.conf}, ${c.sources} src`;
+      ans.textContent = c.answer;
+      if (watching === b) showTrace(b);
+    }
+
+    function reset() {
+      done.clear();
+      btns.forEach((b) => {
+        b.dataset.state = 'queued';
+        b.querySelector('.st')!.textContent = 'queued';
+        b.querySelector('.ans')!.textContent = '';
+      });
+    }
+
+    // A tiny job queue: three workers claim the next queued cell, like GridMind's Postgres queue.
+    runAll.addEventListener('click', async () => {
+      const id = ++runs;
+      runAll.disabled = true;
+      reset();
+      if (!watching) showTrace(btns[3]);
+      else showTrace(watching);
+      const queue = [...btns];
+      const worker = async () => {
+        while (queue.length && id === runs) await runCell(queue.shift()!);
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      runAll.disabled = false;
+      runAll.textContent = 'Run again';
+    });
+
+    btns.forEach((b) =>
+      b.addEventListener('click', () => {
+        showTrace(b);
+        // Outside a full run, clicking an idle cell runs just that one.
+        if (!b.dataset.state) runCell(b);
+      }),
+    );
+  }
+</script>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+  .sheet,
+  .trace {
+    padding: 1.2rem 1.25rem;
+    min-width: 0;
+  }
+  .sheet {
+    border-right: 1px solid var(--edge);
+  }
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.8rem;
+  }
+  .lbl {
+    margin: 0;
+    color: var(--muted);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  th,
+  td {
+    border: 1px solid var(--edge);
+    padding: 0;
+    text-align: left;
+  }
+  thead th {
+    padding: 0.5rem 0.6rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--bg);
+  }
+  thead th:first-child {
+    width: 30%;
+  }
+  tbody th {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+  }
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 100%;
+    min-height: 4.4rem;
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    transition: background 0.15s;
+  }
+  .cell:hover {
+    background: var(--accent-soft);
+  }
+  .cell.sel {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .st {
+    font-size: 0.68rem;
+    color: var(--faint);
+  }
+  .ans {
+    font-size: 0.86rem;
+    line-height: 1.3;
+  }
+  .cell[data-state='running'] .st {
+    color: var(--pend);
+  }
+  .cell[data-state='high'] .st {
+    color: var(--ok);
+  }
+  .cell[data-state='medium'] .st {
+    color: var(--accent);
+  }
+  .cell[data-state='low'] .st,
+  .cell[data-state='none'] .st {
+    color: var(--fail);
+  }
+  .cell[data-state='none'] .ans {
+    color: var(--muted);
+  }
+  .trace {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+  .nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .nodes li {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+  }
+  .nodes li + li::before {
+    content: '→';
+    color: var(--faint);
+  }
+  .nodes span {
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--edge);
+    color: var(--faint);
+    transition: all 0.2s;
+  }
+  .nodes .seen span {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  .nodes .now span {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .retry {
+    margin: 0;
+    min-height: 1.2em;
+    color: var(--pend);
+  }
+  .log {
+    flex: 1;
+    margin: 0;
+    padding: 0.8rem;
+    min-height: 12rem;
+    border: 1px solid var(--edge);
+    background: var(--bg);
+    list-style: none;
+    font-size: 0.74rem;
+    line-height: 1.6;
+  }
+  .log :global(b) {
+    display: inline-block;
+    min-width: 4.2rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .log :global(.end) {
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--edge);
+  }
+  @media (max-width: 860px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+    .sheet {
+      border-right: 0;
+      border-bottom: 1px solid var(--edge);
+    }
+  }
+</style>

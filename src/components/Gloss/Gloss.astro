@@ -1,0 +1,11 @@
+---
+// Plain text with glossary terms marked. The shared tooltip lives in GlossTip.astro.
+import { split } from '@/lib/glossary';
+
+interface Props {
+  text: string;
+}
+const pieces = split(Astro.props.text);
+---
+
+{pieces.map((p) => (typeof p === 'string' ? p : <span class="gl" tabindex="0" data-def={p.term.def}>{p.text}</span>))}

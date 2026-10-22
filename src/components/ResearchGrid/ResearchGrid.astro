@@ -1,0 +1,378 @@
+---
+// A GridMind-style research sheet about me. Each row's "agent" plans, searches, reads and answers.
+// Answers are baked from real data at build time; the run is replayed in the browser.
+import { getCollection } from 'astro:content';
+import { getPRs } from '@/lib/github';
+import { getPosts } from '@/lib/devto';
+
+const [prs, posts, projects] = await Promise.all([getPRs(), getPosts(), getCollection('projects')]);
+const flagship = projects.sort((a, b) => a.data.order - b.data.order)[0];
+const pr = prs[0];
+const post = posts[0];
+
+interface Row {
+  q: string;
+  a: string;
+  badge?: { text: string; tone: string };
+  src: string;
+  steps: [string, number][];
+}
+
+const rows: Row[] = [
+  {
+    q: 'What does Dev build?',
+    a: 'Agentic AI systems, and the backend that keeps them honest in production',
+    src: 'about',
+    steps: [['plan_query("dev focus")', 14], ['search(profile.json)', 92], ['read(bio, 3 paragraphs)', 61], ['answer', 23]],
+  },
+  {
+    q: 'Flagship project?',
+    a: `${flagship.data.title}: ${flagship.data.tagline.replace(/\.$/, '')}`,
+    src: 'projects',
+    steps: [['plan_query("top project")', 11], ['search(projects/*.md)', 148], ['read(watchtower.md)', 74], ['answer', 19]],
+  },
+  pr
+    ? {
+        q: 'Latest upstream PR?',
+        a: `${pr.repo}#${pr.number} · ${pr.title}`,
+        badge: { text: pr.state, tone: pr.state === 'merged' ? 'ok' : pr.state === 'open' ? 'pend' : 'fail' },
+        src: 'open-source',
+        steps: [['plan_query("recent PRs")', 12], ['search(api.github.com)', 211], ['read(1 of ' + prs.length + ' PRs)', 38], ['answer', 21]],
+      }
+    : {
+        q: 'Open source?',
+        a: 'Fixes in Kubeflow, Prefect, Docling and OpenLLMetry',
+        src: 'open-source',
+        steps: [['plan_query("oss")', 12], ['search(cache)', 40], ['answer', 21]],
+      },
+  post
+    ? {
+        q: 'Latest writing?',
+        a: post.title,
+        badge: { text: `${post.minutes} min`, tone: 'mute' },
+        src: 'writing',
+        steps: [['plan_query("latest post")', 10], ['search(dev.to/api)', 186], ['read(' + posts.length + ' articles)', 55], ['answer', 18]],
+      }
+    : {
+        q: 'Writes about?',
+        a: 'LLM internals: tokens, KV cache, training cost',
+        src: 'writing',
+        steps: [['plan_query("topics")', 10], ['answer', 18]],
+      },
+  {
+    q: 'Daily stack?',
+    a: 'Python · LangGraph · FastAPI · Postgres · Redis · Docker',
+    src: 'stack',
+    steps: [['plan_query("stack")', 9], ['search(skills.yaml)', 44], ['answer', 15]],
+  },
+];
+---
+
+<div class="sheet blk" data-grid data-reveal>
+  <div class="bar mono">
+    <span class="file"><span class="sq"></span> research.sheet <span class="muted">{rows.length} rows, one agent per cell</span></span>
+    <span class="right">
+      <span class="progress" data-progress>{rows.length}/{rows.length} answered</span>
+      <button type="button" class="run" data-run>Run again</button>
+    </span>
+  </div>
+  <div class="cols mono" aria-hidden="true"><span>#</span><span>question</span><span>answer</span><span>source</span></div>
+  <ol>
+    {
+      rows.map((r, i) => (
+        <li class="row" data-row data-state="done">
+          <button type="button" class="line" data-toggle aria-expanded="false">
+            <span class="mono idx">{String(i + 1).padStart(2, '0')}</span>
+            <span class="q">{r.q}</span>
+            <span class="a">
+              <span class="thinking mono" data-thinking />
+              <span class="typed" data-full={r.a}>{r.a}</span>
+              {r.badge && <span class:list={['badge mono', r.badge.tone]}>{r.badge.text}</span>}
+            </span>
+            <span class="src mono">
+              <span class="conf" />
+              {r.src}
+            </span>
+          </button>
+          <div class="trace mono" hidden>
+            {r.steps.map(([s, ms]) => (
+              <span class="step">
+                <span class="ok">✓</span> {s} <span class="ms">{ms}ms</span>
+              </span>
+            ))}
+            <a href={`#${r.src}`} class="cite">open source ↓</a>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-grid]')!;
+  const rows = [...root.querySelectorAll<HTMLElement>('[data-row]')];
+  const progress = root.querySelector<HTMLElement>('[data-progress]')!;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  let running = false;
+
+  const runRow = async (row: HTMLElement, i: number) => {
+    const typed = row.querySelector<HTMLElement>('.typed')!;
+    const think = row.querySelector<HTMLElement>('[data-thinking]')!;
+    const steps = [...row.querySelectorAll('.step')].map((s) => s.textContent!.replace('✓', '').replace(/\d+ms$/, '').trim());
+    const full = typed.dataset.full!;
+    row.dataset.state = 'run';
+    typed.textContent = '';
+    await sleep(i * 180);
+    for (const s of steps.slice(0, -1)) {
+      think.textContent = s + '…';
+      await sleep(260 + Math.random() * 260);
+    }
+    think.textContent = '';
+    row.dataset.state = 'typing';
+    for (let c = 1; c <= full.length; c += 2) {
+      typed.textContent = full.slice(0, c);
+      await sleep(12);
+    }
+    typed.textContent = full;
+    row.dataset.state = 'done';
+  };
+
+  const run = async () => {
+    if (running) return;
+    running = true;
+    rows.forEach((r) => (r.dataset.state = 'queued'));
+    let done = 0;
+    progress.textContent = `0/${rows.length} answered`;
+    await Promise.all(
+      rows.map((r, i) =>
+        runRow(r, i).then(() => {
+          progress.textContent = `${++done}/${rows.length} answered`;
+        }),
+      ),
+    );
+    running = false;
+  };
+
+  root.querySelector('[data-run]')!.addEventListener('click', run);
+  root.querySelectorAll<HTMLButtonElement>('[data-toggle]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const t = b.nextElementSibling as HTMLElement;
+      const open = t.hidden;
+      t.hidden = !open;
+      b.setAttribute('aria-expanded', String(open));
+    }),
+  );
+
+  if (!reduce) {
+    const io = new IntersectionObserver((e) => {
+      if (e[0].isIntersecting) {
+        io.disconnect();
+        run();
+      }
+    });
+    io.observe(root);
+  }
+</script>
+
+<style>
+  .sheet {
+    margin-top: -1px;
+    overflow: hidden;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--edge);
+    background: var(--bg);
+  }
+  .file {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sq {
+    width: 0.6rem;
+    height: 0.6rem;
+    background: var(--accent);
+    flex: none;
+  }
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex: none;
+  }
+  .progress {
+    color: var(--faint);
+  }
+  .run {
+    padding: 0.2rem 0.65rem;
+    border: 1px solid var(--fg);
+    border-radius: 0;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .run:hover {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .cols,
+  .line {
+    display: grid;
+    grid-template-columns: 2rem 11rem 1fr 6.5rem;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .cols {
+    padding: 0.45rem 1rem;
+    color: var(--faint);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--edge);
+  }
+  ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .row + .row {
+    border-top: 1px solid var(--line);
+  }
+  .line {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    text-align: left;
+    transition: background 0.2s;
+  }
+  .line:hover {
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+  }
+  .idx {
+    color: var(--faint);
+  }
+  .q {
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+  .a {
+    font-size: 0.93rem;
+    color: var(--muted);
+    min-height: 1.4em;
+  }
+  .thinking {
+    color: var(--pend);
+    font-size: 0.72rem;
+  }
+  [data-state='queued'] .a::before {
+    content: 'queued';
+    font: 0.72rem var(--mono);
+    color: var(--faint);
+  }
+  [data-state='queued'] .badge,
+  [data-state='run'] .badge,
+  [data-state='typing'] .badge {
+    display: none;
+  }
+  .typed:empty {
+    display: none;
+  }
+  [data-state='typing'] .typed::after {
+    content: '▍';
+    color: var(--accent);
+  }
+  .badge {
+    margin-left: 0.5rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 0;
+    font-size: 0.66rem;
+    border: 1px solid currentColor;
+  }
+  .badge.ok {
+    color: var(--ok);
+  }
+  .badge.pend {
+    color: var(--pend);
+  }
+  .badge.fail {
+    color: var(--fail);
+  }
+  .badge.mute {
+    color: var(--faint);
+  }
+  .src {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    justify-content: flex-end;
+    color: var(--faint);
+  }
+  .conf {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--edge);
+  }
+  [data-state='done'] .conf {
+    background: var(--ok);
+  }
+  [data-state='run'] .conf,
+  [data-state='typing'] .conf {
+    background: var(--pend);
+    animation: pulse 0.8s infinite;
+  }
+  .trace {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.1rem;
+    padding: 0 1rem 0.9rem 3.75rem;
+    color: var(--muted);
+  }
+  .trace[hidden] {
+    display: none;
+  }
+  .trace .ok {
+    color: var(--ok);
+  }
+  .ms {
+    color: var(--faint);
+  }
+  .cite {
+    color: var(--accent);
+  }
+  @media (max-width: 720px) {
+    .cols {
+      display: none;
+    }
+    .line {
+      grid-template-columns: 1.6rem 1fr;
+      gap: 0.15rem 0.6rem;
+    }
+    .q {
+      grid-column: 2;
+    }
+    .a {
+      grid-column: 2;
+    }
+    .src {
+      grid-column: 2;
+      justify-content: flex-start;
+    }
+    .idx {
+      grid-row: 1;
+    }
+    .trace {
+      padding-left: 2.8rem;
+    }
+    .file .muted {
+      display: none;
+    }
+  }
+</style>

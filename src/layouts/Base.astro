@@ -1,0 +1,88 @@
+---
+import '@fontsource-variable/geist';
+import '@fontsource-variable/archivo/wdth.css';
+import '@fontsource-variable/jetbrains-mono';
+import '@/styles/global.css';
+import Header from '@/components/Header/Header.astro';
+import Footer from '@/components/Footer/Footer.astro';
+import Palette from '@/components/Palette/Palette.astro';
+import GlossTip from '@/components/Gloss/GlossTip.astro';
+import profile from '@/data/profile.json';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string; // social preview, from /og/<slug>.png
+}
+
+const {
+  title = `${profile.name} · agents and AI infrastructure`,
+  description = `${profile.name}: ${profile.role} Final-year CS at KIIT.`,
+  image = '/og/home.png',
+} = Astro.props;
+const ogUrl = new URL(image, Astro.site);
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content={ogUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:image" content={ogUrl} />
+    <link rel="alternate" type="application/rss+xml" title={`${profile.name}, writing`} href="/rss.xml" />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#ebeae4" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Theme before paint: the visitor's saved choice, else light paper. -->
+    <script is:inline>
+      try { document.documentElement.dataset.theme = localStorage.getItem('theme-v2') || 'light'; } catch {}
+    </script>
+  </head>
+  <body>
+    <a class="skip sr-only" href="#main">Skip to content</a>
+    <Header />
+    <slot name="rail" />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+    <Palette />
+    <GlossTip />
+  </body>
+</html>
+
+<script>
+  import '@/lib/console';
+</script>
+
+<style>
+  main {
+    width: min(var(--w), 100% - 2 * var(--gutter));
+    margin-inline: auto;
+    padding-top: 4.5rem;
+  }
+  .skip:focus {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    width: auto;
+    height: auto;
+    clip: auto;
+    z-index: 100;
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+</style>

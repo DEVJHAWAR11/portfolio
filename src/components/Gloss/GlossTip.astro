@@ -1,0 +1,68 @@
+---
+// One tooltip for every .gl term on the page, placed above the term and kept inside the viewport.
+---
+
+<div id="gl-tip" role="tooltip" hidden></div>
+
+<script>
+  const tip = document.getElementById('gl-tip')!;
+  let current: HTMLElement | null = null;
+
+  const show = (el: HTMLElement) => {
+    current = el;
+    tip.textContent = el.dataset.def ?? '';
+    tip.hidden = false;
+    el.setAttribute('aria-describedby', 'gl-tip');
+    const r = el.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8);
+    const above = r.top - h - 8;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${above > 8 ? above : r.bottom + 8}px`;
+  };
+  const hide = () => {
+    current?.removeAttribute('aria-describedby');
+    current = null;
+    tip.hidden = true;
+  };
+
+  const term = (e: Event) => (e.target as Element | null)?.closest?.<HTMLElement>('.gl');
+  document.addEventListener('pointerover', (e) => {
+    const el = term(e);
+    if (el) show(el);
+    else if (current) hide();
+  });
+  document.addEventListener('focusin', (e) => {
+    const el = term(e);
+    if (el) show(el);
+  });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && hide());
+  addEventListener('scroll', hide, { passive: true });
+</script>
+
+<style is:global>
+  .gl {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+    cursor: help;
+  }
+  .gl:hover,
+  .gl:focus-visible {
+    color: var(--accent);
+  }
+  #gl-tip {
+    position: fixed;
+    z-index: 90;
+    width: max-content;
+    max-width: min(18rem, calc(100vw - 16px));
+    padding: 0.55rem 0.7rem;
+    background: var(--fg);
+    color: var(--bg);
+    font: 400 0.82rem/1.45 var(--sans);
+    pointer-events: none;
+  }
+</style>

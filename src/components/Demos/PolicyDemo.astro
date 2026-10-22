@@ -1,0 +1,392 @@
+---
+// PolicyLens in miniature: ask a short policy a question, rank its clauses, and answer by quoting the clause and page.
+// The policy is a joke document about this site; the search is keyword-only, where the real app adds vectors, a reranker and an LLM.
+const clauses = [
+  { id: '1.1', page: 1, head: 'Definitions', text: '"Visitor" means anyone reading this site. "Dev" means the person who built it.' },
+  { id: '1.2', page: 1, head: 'Definitions', text: 'A "demo" is any part of this site that moves when you click it.' },
+  { id: '2.1', page: 1, head: 'Use of the site', text: 'Visitor may read every page free of charge, as many times as they like.' },
+  { id: '2.2', page: 1, head: 'Use of the site', text: 'Visitor may borrow CSS and layout ideas, provided they link back to this site.' },
+  { id: '2.3', page: 2, head: 'Use of the site', text: 'Scraping is permitted at under one request per second. Polite agents are welcome.' },
+  { id: '3.1', page: 2, head: 'Contact', text: 'Email is the best way to reach Dev. Replies follow India time (IST).' },
+  { id: '3.2', page: 2, head: 'Contact', text: 'Messages sent between 02:00 and 08:00 IST are answered after Dev wakes up.' },
+  { id: '3.3', page: 2, head: 'Contact', text: 'Recruiters and collaborators may reach Dev by email or LinkedIn.' },
+  { id: '4.1', page: 3, head: 'Privacy', text: 'This site sets no tracking cookies and runs no third-party analytics.' },
+  { id: '4.2', page: 3, head: 'Privacy', text: 'Your light or dark theme choice is saved in your own browser and never sent anywhere.' },
+  { id: '5.1', page: 3, head: 'Liability', text: 'Dev is not liable for time lost playing with the demos.' },
+  { id: '5.2', page: 3, head: 'Liability', text: 'Dark mode is provided as is, with no warranty of being easier on the eyes.' },
+];
+const examples = ['Can I copy the CSS?', 'How fast will Dev reply?', 'Does this site track me?', 'What is the refund policy?'];
+const pages = [1, 2, 3];
+---
+
+<div class="demo policy" data-policy={JSON.stringify(clauses)}>
+  <div class="ask">
+    <form id="p-form">
+      <label class="mono lbl" for="p-q">Ask the policy on the right a question</label>
+      <div class="row">
+        <input id="p-q" type="text" placeholder="e.g. Can I copy the CSS?" autocomplete="off" spellcheck="false" />
+        <button class="btn solid" type="submit">Ask</button>
+      </div>
+    </form>
+    <div class="ex">
+      <span class="mono">Try</span>
+      {examples.map((e) => <button type="button" class="chip" data-ex={e}>{e}</button>)}
+    </div>
+
+    <div class="result" id="p-flow" aria-live="polite">
+      <div id="p-answer"><p class="empty">Pick a question above or type your own. The answer and the clause it came from show up here.</p></div>
+      <details id="p-how" hidden>
+        <summary class="mono">How it found this</summary>
+        <p id="p-terms"></p>
+        <div id="p-hits"></div>
+      </details>
+    </div>
+  </div>
+
+  <div class="doc" id="p-doc" tabindex="0" aria-label="Terms of visiting devjhawar.com">
+    <p class="doctitle">Terms of visiting devjhawar.com</p>
+    {
+      pages.map((pg) => (
+        <section class="page">
+          <p class="pno mono">Page {pg}</p>
+          {clauses
+            .filter((c) => c.page === pg)
+            .map((c, i, arr) => (
+              <>
+                {(i === 0 || arr[i - 1].head !== c.head) && <h5>{c.head}</h5>}
+                <p class="cl" data-id={c.id}>
+                  <b>{c.id}</b> {c.text}
+                </p>
+              </>
+            ))}
+        </section>
+      ))
+    }
+  </div>
+</div>
+
+<script>
+  interface Clause {
+    id: string;
+    page: number;
+    head: string;
+    text: string;
+  }
+  const root = document.querySelector<HTMLElement>('[data-policy]');
+  if (root) {
+    const clauses: Clause[] = JSON.parse(root.dataset.policy!);
+    const form = root.querySelector<HTMLFormElement>('#p-form')!;
+    const q = root.querySelector<HTMLInputElement>('#p-q')!;
+    const flow = root.querySelector<HTMLElement>('#p-flow')!;
+    const termsEl = root.querySelector('#p-terms')!;
+    const hits = root.querySelector('#p-hits')!;
+    const answer = root.querySelector('#p-answer')!;
+    const how = root.querySelector<HTMLDetailsElement>('#p-how')!;
+    const doc = root.querySelector<HTMLElement>('#p-doc')!;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
+
+    const STOP = new Set('a an the of to in on at by if as for is it i my me can will do does what how this that be and or are any with from'.split(' '));
+    // A handful of synonyms stand in for the meaning search the real app does with embeddings.
+    const SYN: Record<string, string[]> = {
+      copy: ['borrow'], steal: ['borrow'], reuse: ['borrow'], styles: ['css'], design: ['layout'],
+      fast: ['reply', 'days'], quick: ['reply', 'days'], respond: ['reply'], answer: ['reply'], reply: ['email'],
+      track: ['tracking', 'cookies', 'analytics'], tracked: ['tracking', 'cookies'], cookie: ['cookies'], data: ['privacy', 'sent'],
+      hire: ['recruiters'], job: ['recruiters'], contact: ['email', 'linkedin'],
+      '3am': ['02', 'wakes'], late: ['02', 'wakes'], night: ['02', 'wakes'], sleep: ['wakes'],
+      scrape: ['scraping'], bot: ['agents', 'scraping'], crawl: ['scraping'], dark: ['dark', 'theme'], theme: ['theme'],
+    };
+    const stem = (w: string) => w.replace(/(?<=..)s$/, '');
+    const words = (s: string) =>
+      s
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w && !STOP.has(w))
+        .map(stem);
+    const docs = clauses.map((c) => new Set(words(`${c.head} ${c.text}`)));
+    const df = (w: string) => docs.filter((d) => d.has(w)).length;
+    const idf = (w: string) => Math.log(1 + clauses.length / df(w));
+
+    function show(id: string) {
+      const el = doc.querySelector<HTMLElement>(`.cl[data-id="${id}"]`)!;
+      doc.querySelectorAll('.cl').forEach((c) => c.classList.remove('hit'));
+      void el.offsetWidth;
+      el.classList.add('hit');
+      const top = doc.scrollTop + el.getBoundingClientRect().top - doc.getBoundingClientRect().top - 60;
+      doc.scrollTo({ top, behavior: reduce ? 'auto' : 'smooth' });
+    }
+
+    function ask(text: string) {
+      const qs = words(text);
+      const terms = [...new Set(qs.flatMap((w) => [w, ...(SYN[w] ?? []).map(stem)]))];
+      const ranked = clauses
+        .map((c, i) => {
+          // Two question words side by side in a clause ("dark mode") count extra.
+          const t = c.text.toLowerCase();
+          const pairs = qs.slice(1).filter((w, j) => t.includes(`${qs[j]} ${w}`)).length;
+          return { c, score: terms.reduce((n, w) => n + (docs[i].has(w) ? idf(w) : 0), 0) + pairs };
+        })
+        .sort((a, b) => b.score - a.score);
+      const top = ranked.filter((r) => r.score > 0).slice(0, 3);
+      const best = top[0];
+      // Below this score nothing really matched, and the honest answer is that the document doesn't say.
+      const found = !!best && best.score >= 1.2;
+
+      // Replay the three steps, so asking the same question again still visibly runs.
+      flow.classList.remove('run');
+      void flow.offsetWidth;
+      flow.classList.add('run');
+      doc.querySelectorAll('.cl').forEach((el) => el.classList.remove('hit'));
+
+      if (!qs.length) {
+        answer.innerHTML = '<p class="empty">Type a question first, or pick one above.</p>';
+        how.hidden = true;
+        return;
+      }
+      termsEl.innerHTML = `Searched ${clauses.length} clauses for ${terms.map((t) => `<code>${esc(t)}</code>`).join(' ')}`;
+      hits.innerHTML = top.length
+        ? `<ol>${top
+            .map(
+              ({ c, score }, i) =>
+                `<li class="${i === 0 && found ? 'best' : ''}"><span class="mono">§${c.id}</span><span class="sc"><i style="width:${(score / best.score) * 100}%"></i></span><span class="mono">${score.toFixed(1)}</span></li>`,
+            )
+            .join('')}</ol>`
+        : '<p>No clause shares a word with the question.</p>';
+      how.hidden = false;
+      answer.innerHTML = found
+        ? `<blockquote>${esc(best.c.text)}</blockquote><p class="cite mono">§${best.c.id}, page ${best.c.page} <button type="button" class="src" data-id="${best.c.id}">Show in document</button></p>`
+        : '<blockquote class="none">Not in this document.</blockquote><p class="cite mono">No clause covers it, so there is nothing to cite.</p>';
+      if (found) show(best.c.id);
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      ask(q.value);
+    });
+    root.querySelectorAll<HTMLButtonElement>('[data-ex]').forEach((b) =>
+      b.addEventListener('click', () => {
+        q.value = b.dataset.ex!;
+        ask(q.value);
+      }),
+    );
+    // The source button jumps to the clause, like PolicyLens opening the PDF at the right page.
+    answer.addEventListener('click', (e) => {
+      const id = (e.target as Element).closest<HTMLElement>('.src')?.dataset.id;
+      if (id) {
+        show(id);
+        doc.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+      }
+    });
+  }
+</script>
+
+<style>
+  .policy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ask {
+    padding: 1.2rem 1.25rem;
+    border-right: 1px solid var(--edge);
+    min-width: 0;
+  }
+  .lbl {
+    display: block;
+    margin: 0 0 0.6rem;
+    color: var(--muted);
+  }
+  .row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 2.75rem;
+    padding: 0 0.8rem;
+    border: 1px solid var(--fg);
+    background: var(--bg);
+    color: var(--fg);
+    font: 400 1rem/1 var(--sans);
+  }
+  input::placeholder {
+    color: var(--faint);
+  }
+  input:focus-visible {
+    outline-offset: 0;
+  }
+  .ex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0.7rem 0 1rem;
+  }
+  .ex span {
+    align-self: center;
+    margin-right: 0.2rem;
+    color: var(--faint);
+  }
+  .ex .chip {
+    cursor: pointer;
+  }
+  .ex .chip:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  .result {
+    padding-top: 1rem;
+    border-top: 1px solid var(--edge);
+  }
+  .result.run #p-answer {
+    animation: show 0.35s var(--ease) both;
+  }
+  @keyframes show {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+  #p-answer :global(.empty) {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  #p-answer :global(blockquote) {
+    margin: 0;
+    padding: 0.2rem 0 0.2rem 0.9rem;
+    border-left: 3px solid var(--accent);
+    font-size: 1.1rem;
+    line-height: 1.45;
+  }
+  #p-answer :global(blockquote.none) {
+    border-left-color: var(--faint);
+    color: var(--muted);
+  }
+  #p-answer :global(.cite) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.8rem;
+    margin: 0.6rem 0 0 0.9rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  #p-answer :global(.src) {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font: inherit;
+  }
+  #p-how {
+    margin-top: 1.2rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  #p-how summary {
+    width: fit-content;
+    cursor: pointer;
+    font-size: 0.74rem;
+  }
+  #p-how summary:hover {
+    color: var(--fg);
+  }
+  #p-how p {
+    margin: 0.6rem 0 0.4rem;
+    line-height: 1.7;
+  }
+  #p-how :global(code) {
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--edge);
+    font: 0.74rem var(--mono);
+    color: var(--fg);
+  }
+  #p-how :global(ol) {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  #p-how :global(li) {
+    display: grid;
+    grid-template-columns: 3rem minmax(0, 1fr) 2.4rem;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.2rem 0;
+    font-size: 0.74rem;
+  }
+  #p-how :global(li.best) {
+    color: var(--fg);
+  }
+  #p-how :global(.sc) {
+    height: 0.35rem;
+    background: var(--line);
+  }
+  #p-how :global(.sc i) {
+    display: block;
+    height: 100%;
+    background: var(--faint);
+  }
+  #p-how :global(li.best .sc i) {
+    background: var(--accent);
+  }
+  .doc {
+    max-height: 34rem;
+    overflow-y: auto;
+    padding: 1.2rem 1.25rem;
+    background: var(--bg);
+    scrollbar-width: thin;
+  }
+  .doctitle {
+    margin: 0 0 1rem;
+    font: 700 1.05rem/1.2 var(--display);
+    font-stretch: 85%;
+  }
+  .page {
+    position: relative;
+    margin-bottom: 0.8rem;
+    padding: 1rem 1.1rem 0.6rem;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+  }
+  .pno {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.7rem;
+    margin: 0;
+    font-size: 0.66rem;
+    color: var(--faint);
+  }
+  h5 {
+    margin: 0.4rem 0 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .cl {
+    margin: 0 0 0.6rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--muted);
+    transition: background 0.3s, color 0.3s;
+  }
+  .cl b {
+    font: 600 0.75rem var(--mono);
+    color: var(--fg);
+    margin-right: 0.3rem;
+  }
+  .cl.hit {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--fg);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  @media (max-width: 860px) {
+    .policy {
+      grid-template-columns: 1fr;
+    }
+    .ask {
+      border-right: 0;
+      border-bottom: 1px solid var(--edge);
+    }
+    .doc {
+      max-height: 22rem;
+    }
+  }
+</style>

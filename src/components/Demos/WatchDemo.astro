@@ -1,0 +1,351 @@
+---
+// WatchTower in miniature: a sentence becomes a watch rule, and "Run a check" walks one check down the cost ladder.
+// The real app does this with LangGraph agents and Groq; here a few regexes and three scripted outcomes stand in.
+const examples = [
+  'Tell me when kubeflow/trainer merges my PR',
+  'Ping me on Telegram if the Pixel 9 drops below ₹50,000 on Flipkart',
+  'Every morning, tell me if a new Postgres release is out',
+  'Email me when the KIIT exam notice page changes',
+];
+const rungs = [
+  ['Fetch', 'one shared fetch for every subscriber'],
+  ['Hash gate', 'skip if the page bytes are identical'],
+  ['Noise filter', 'ignore counters, clocks and ads'],
+  ['Rules', 'cheap checks like price < 50000'],
+  ['Triage model', 'small, fast model: worth a closer look?'],
+  ['Judge model', 'must quote evidence from the page'],
+];
+---
+
+<div class="demo watch" data-watch>
+  <div class="in">
+    <label class="mono lbl" for="w-q">Describe what to watch</label>
+    <input id="w-q" type="text" value={examples[0]} autocomplete="off" spellcheck="false" />
+    <div class="ex">
+      {examples.map((e) => <button type="button" class="chip" data-ex={e}>{e}</button>)}
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="spec">
+      <p class="mono lbl">Watch rule</p>
+      <pre class="mono" aria-live="polite"><code id="w-spec"></code></pre>
+    </div>
+
+    <div class="ladder">
+      <div class="lhead">
+        <p class="mono lbl">One scheduled check</p>
+        <button type="button" class="btn sm solid" id="w-run">Run a check</button>
+      </div>
+      <ol>
+        {
+          rungs.map(([name, what]) => (
+            <li>
+              <span class="name">{name}</span>
+              <span class="what">{what}</span>
+              <span class="res mono" />
+            </li>
+          ))
+        }
+      </ol>
+      <p class="out mono" id="w-out" aria-live="polite">Each check stops at the first step that can rule it out.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-watch]');
+  if (root) {
+    const q = root.querySelector<HTMLInputElement>('#w-q')!;
+    const spec = root.querySelector('#w-spec')!;
+    const run = root.querySelector<HTMLButtonElement>('#w-run')!;
+    const out = root.querySelector('#w-out')!;
+    const rows = [...root.querySelectorAll<HTMLLIElement>('ol li')];
+
+    interface Spec {
+      target: string;
+      condition: string;
+      schedule: string;
+      notify: string;
+      evidence: string;
+    }
+
+    const known: Record<string, string> = {
+      flipkart: 'flipkart.com',
+      amazon: 'amazon.in',
+      kiit: 'kiit.ac.in/notices',
+      postgres: 'postgresql.org/about/newsarchive',
+      postgresql: 'postgresql.org/about/newsarchive',
+    };
+
+    function compile(text: string): Spec {
+      const t = text.trim();
+      const low = t.toLowerCase();
+
+      const notify = /telegram/.test(low) ? 'telegram' : /push/.test(low) ? 'push' : /webhook|slack|discord/.test(low) ? 'webhook' : 'email';
+
+      const every = low.match(/every (\d+) ?(min|minute|hour)s?/);
+      const schedule = every
+        ? `every ${every[1]} ${every[2].startsWith('h') ? 'h' : 'min'}`
+        : /every morning|daily|each day|every day/.test(low)
+          ? 'daily 08:00 IST'
+          : /hourly|every hour/.test(low)
+            ? 'every 1 h'
+            : /weekly|every week/.test(low)
+              ? 'weekly, Mon 09:00 IST'
+              : 'every 30 min';
+
+      const repo = t.match(/\b([\w.-]+\/[\w.-]+)\b/);
+      const url = t.match(/https?:\/\/\S+/);
+      const site = Object.keys(known).find((k) => new RegExp(`\\b${k}\\b`).test(low));
+      const target = url ? url[0] : repo ? `github.com/${repo[1]}/pulls?author=@me` : site ? known[site] : 'search the web, pick sources';
+
+      const price = low.match(/(?:below|under|less than)\s*(?:₹|rs\.?|\$)?\s*([\d,]+)/);
+      let condition: string;
+      let evidence: string;
+      if (price) {
+        const n = price[1].replace(/,/g, '');
+        condition = `price < ${n}`;
+        evidence = `"Special price ₹${(Number(n) - 1500).toLocaleString('en-IN')}"`;
+      } else if (/merge/.test(low)) {
+        condition = 'my PR state == merged';
+        evidence = '"merged commit into master"';
+      } else if (/release|is out|launch/.test(low)) {
+        condition = 'a new release is announced';
+        evidence = '"PostgreSQL 18.1 Released!"';
+      } else if (/change|update/.test(low)) {
+        condition = 'notice text changes (not timestamps)';
+        evidence = '"Revised schedule for end-semester exams"';
+      } else {
+        const clause = low.match(/(?:when|if|once|whenever)\s+(.+)/);
+        condition = (clause ? clause[1] : t).replace(/\s+(on|via|by)\s+(telegram|email|push|webhook).*$/, '') || '…';
+        evidence = '"(quoted from the page)"';
+      }
+      return { target, condition, schedule, notify, evidence };
+    }
+
+    const esc = (s: string) => s.replace(/[&<>]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt' }[c]};`);
+    let current = compile(q.value);
+    function render() {
+      current = compile(q.value);
+      const line = (k: string, v: string, last = false) => `  <span class="k">"${k}"</span>: <span class="v">"${esc(v)}"</span>${last ? '' : ','}`;
+      spec.innerHTML = [
+        '{',
+        line('target', current.target),
+        line('condition', current.condition),
+        line('schedule', current.schedule),
+        line('notify', current.notify),
+        line('alert', 'once, with evidence', true),
+        '}',
+      ].join('\n');
+      reset();
+    }
+
+    // Three outcomes, in turn: nothing changed, only noise changed, the real thing happened.
+    const outcomes = [
+      { stop: 1, res: ['ok', 'same hash'], msg: 'Stopped at the hash gate. Page unchanged, 0 model calls.' },
+      { stop: 2, res: ['ok', 'changed', 'only a timestamp'], msg: 'Stopped at the noise filter. Only a clock changed, 0 model calls.' },
+      { stop: 5, res: ['ok', 'changed', 'real change', 'needs a model', 'likely match'], msg: '' },
+    ];
+    let turn = 0;
+    let timer = 0;
+
+    function reset() {
+      clearTimeout(timer);
+      rows.forEach((r) => {
+        r.className = '';
+        r.querySelector('.res')!.textContent = '';
+      });
+      run.disabled = false;
+    }
+
+    run.addEventListener('click', () => {
+      reset();
+      const o = outcomes[turn++ % outcomes.length];
+      const res = o.stop === 5 ? [...o.res, `quote found: ${current.evidence}`] : o.res;
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      run.disabled = true;
+      out.textContent = 'Checking…';
+      let i = 0;
+      const step = () => {
+        rows[i].className = i === o.stop ? 'stop' : 'pass';
+        rows[i].querySelector('.res')!.textContent = res[i];
+        if (i < o.stop) {
+          i++;
+          timer = window.setTimeout(step, reduce ? 0 : 380);
+        } else {
+          rows.slice(o.stop + 1).forEach((r) => (r.className = 'skip'));
+          out.textContent = o.msg || `Condition met. 2 model calls, one alert sent by ${current.notify}.`;
+          run.disabled = false;
+        }
+      };
+      step();
+    });
+
+    q.addEventListener('input', render);
+    root.querySelectorAll<HTMLButtonElement>('[data-ex]').forEach((b) =>
+      b.addEventListener('click', () => {
+        q.value = b.dataset.ex!;
+        render();
+      }),
+    );
+    render();
+  }
+</script>
+
+<style>
+  .lbl {
+    margin: 0 0 0.6rem;
+    color: var(--muted);
+  }
+  .in {
+    padding: 1.2rem 1.25rem;
+    border-bottom: 1px solid var(--edge);
+  }
+  .in label {
+    display: block;
+  }
+  input {
+    width: 100%;
+    height: 3.2rem;
+    padding: 0 0.9rem;
+    border: 1px solid var(--fg);
+    background: var(--bg);
+    color: var(--fg);
+    font: 400 1.05rem/1 var(--sans);
+  }
+  input:focus-visible {
+    outline-offset: 0;
+  }
+  .ex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.7rem;
+  }
+  .ex .chip {
+    cursor: pointer;
+    white-space: normal;
+    text-align: left;
+  }
+  .ex .chip:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  }
+  .spec,
+  .ladder {
+    padding: 1.2rem 1.25rem;
+  }
+  .spec {
+    border-right: 1px solid var(--edge);
+  }
+  pre {
+    margin: 0;
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--edge);
+    font-size: 0.8rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  pre :global(.k) {
+    color: var(--muted);
+  }
+  pre :global(.v) {
+    color: var(--accent);
+  }
+  .lhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.6rem;
+  }
+  .lhead .lbl {
+    margin: 0;
+  }
+  ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: rung;
+  }
+  li {
+    display: grid;
+    grid-template-columns: 1.6rem 7.5rem minmax(0, 1fr);
+    grid-template-areas: 'n name what' 'n name res';
+    column-gap: 0.6rem;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--line);
+    transition: opacity 0.2s;
+  }
+  li::before {
+    counter-increment: rung;
+    content: counter(rung);
+    grid-area: n;
+    display: grid;
+    place-items: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 1px solid var(--edge);
+    font: 400 0.7rem/1 var(--mono);
+    color: var(--muted);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .name {
+    grid-area: name;
+    font-weight: 500;
+    font-size: 0.92rem;
+  }
+  .what {
+    grid-area: what;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .res {
+    grid-area: res;
+    font-size: 0.72rem;
+    color: var(--ok);
+  }
+  li.pass::before {
+    background: var(--fg);
+    border-color: var(--fg);
+    color: var(--bg);
+  }
+  li.stop::before {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  li.stop .res {
+    color: var(--accent);
+  }
+  li.skip {
+    opacity: 0.35;
+  }
+  .out {
+    margin: 0.9rem 0 0;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--edge);
+    font-size: 0.78rem;
+    min-height: 2.6em;
+  }
+  @media (max-width: 760px) {
+    .cols {
+      grid-template-columns: 1fr;
+    }
+    .spec {
+      border-right: 0;
+      border-bottom: 1px solid var(--edge);
+    }
+    li {
+      grid-template-columns: 1.6rem minmax(0, 1fr);
+      grid-template-areas: 'n name' 'n what' 'n res';
+    }
+  }
+</style>

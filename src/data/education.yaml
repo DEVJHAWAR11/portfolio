@@ -1,0 +1,17 @@
+- id: kiit
+  title: B.Tech, Computer Science
+  org: KIIT University, Bhubaneswar
+  start: Aug 2023
+  end: "2027"
+  current: true
+  detail: "CGPA 9.65. Data structures, operating systems, networks, databases, AI."
+- id: nios
+  title: Higher secondary (XII)
+  org: NIOS, Siliguri
+  start: "2022"
+  detail: Scored 72%.
+- id: stjosephs
+  title: Secondary (X)
+  org: St. Joseph's School, Siliguri
+  start: "2020"
+  detail: Scored 94%.

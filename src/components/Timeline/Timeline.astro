@@ -1,0 +1,83 @@
+---
+import { getCollection } from 'astro:content';
+
+interface Props {
+  collection: 'experience' | 'education';
+  label: string;
+}
+// Newest first. Dates in the YAML are loose ("Oct 2026", "2022"), so parse leniently.
+const when = (s: string) => Date.parse(/^\d{4}$/.test(s) ? `1 Jan ${s}` : `1 ${s}`) || 0;
+const items = (await getCollection(Astro.props.collection)).sort((a, b) => when(b.data.start) - when(a.data.start));
+---
+
+<div class="block blk">
+  <p class="mono label">{Astro.props.label}</p>
+  <ol>
+    {
+      items.map((e) => (
+        <li class:list={{ current: e.data.current }}>
+          <span class="mono when">
+            {e.data.start}
+            {e.data.end ? ` – ${e.data.end}` : e.data.current ? ' – now' : ''}
+          </span>
+          <div>
+            <h3>{e.data.title}</h3>
+            <p class="org">{e.data.org}</p>
+            <p class="muted detail">{e.data.detail}</p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+</div>
+
+<style>
+  .label {
+    margin: 0;
+    padding: 0.6rem 1.1rem;
+    border-bottom: 1px solid var(--edge);
+    background: var(--bg);
+    color: var(--muted);
+  }
+  ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    display: grid;
+    grid-template-columns: 9.5rem 1fr;
+    gap: 1.25rem;
+    padding: 1.1rem;
+  }
+  li + li {
+    border-top: 1px solid var(--line);
+  }
+  .when {
+    padding-top: 0.25rem;
+    color: var(--faint);
+  }
+  .current .when {
+    color: var(--accent);
+  }
+  h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    line-height: 1.1;
+  }
+  .org {
+    margin: 0.2rem 0 0.4rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+  }
+  .detail {
+    margin: 0;
+    font-size: 0.92rem;
+  }
+  @media (max-width: 560px) {
+    li {
+      grid-template-columns: 1fr;
+      gap: 0.3rem;
+    }
+  }
+</style>

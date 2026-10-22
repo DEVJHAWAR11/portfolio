@@ -1,0 +1,101 @@
+---
+// Posts from dev.to (build time) merged with local Markdown posts in src/content/posts.
+import { getCollection } from 'astro:content';
+import { getPosts } from '@/lib/devto';
+import Pending from '@/components/Pending/Pending.astro';
+
+const remote = await getPosts();
+const local = (await getCollection('posts', (p) => !p.data.draft)).map((p) => ({
+  title: p.data.title,
+  url: `/blog/${p.id}`,
+  date: p.data.date.toISOString(),
+  tags: p.data.tags,
+  minutes: Math.max(1, Math.round((p.body?.split(/\s+/).length ?? 0) / 220)),
+  reactions: 0,
+}));
+const posts = [...remote, ...local].sort((a, b) => +new Date(b.date) - +new Date(a.date));
+const fmt = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const week = 7 * 864e5;
+const buildTime = Date.now();
+---
+
+{
+  posts.length === 0 ? (
+    <Pending what="posts from dev.to/dev_jhawar" stage={4} />
+  ) : (
+    <ol class="log">
+      {posts.map((p, i) => (
+        <li data-reveal>
+          <a href={p.url} target={p.url.startsWith('http') ? '_blank' : undefined} rel="noopener">
+            <span class="mono ts">{fmt.format(new Date(p.date))}</span>
+            <span class="title">
+              {p.title}
+              {i === 0 && buildTime - +new Date(p.date) < week && <span class="mono new">new</span>}
+            </span>
+            <span class="mono meta">
+              {p.minutes} min{p.reactions > 0 && ` · ♥ ${p.reactions}`}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+<style>
+  .log {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+  }
+  li + li {
+    border-top: 1px solid var(--line);
+  }
+  a {
+    display: grid;
+    grid-template-columns: 7rem 1fr auto;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 0.95rem 1.1rem;
+    transition: background 0.15s;
+  }
+  a:hover {
+    background: var(--accent-soft);
+  }
+  .ts {
+    color: var(--faint);
+  }
+  .title {
+    font: 700 1.12rem/1.3 var(--display);
+    font-stretch: 88%;
+  }
+  a:hover .title {
+    color: var(--accent);
+  }
+  .new {
+    margin-left: 0.5rem;
+    padding: 0.05rem 0.4rem;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 0.62rem;
+    vertical-align: 0.15em;
+  }
+  .meta {
+    color: var(--faint);
+    white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    a {
+      grid-template-columns: auto 1fr;
+      gap: 0.2rem 0.75rem;
+    }
+    .title {
+      grid-column: 1 / -1;
+    }
+    .meta {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

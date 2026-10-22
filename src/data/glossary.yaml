@@ -1,0 +1,16 @@
+# Terms that get a dotted underline and a one-line definition wherever they appear in project text.
+# `match` lists extra spellings; the term itself always matches.
+- { id: rag, term: RAG, def: "Retrieval-augmented generation: fetch relevant text first, then let the model answer from it." }
+- { id: mcp, term: MCP, def: "Model Context Protocol: a standard way to plug tools and data into an LLM agent." }
+- { id: rrf, term: RRF, match: [reciprocal-rank fusion, reciprocal rank fusion], def: "Reciprocal Rank Fusion: merge ranked lists by summing 1/(k + rank) for each item." }
+- { id: sse, term: SSE, def: "Server-sent events: a one-way stream from server to browser over plain HTTP." }
+- { id: skiplocked, term: SKIP LOCKED, def: "A Postgres row-lock trick that lets many workers pull jobs from one table without colliding." }
+- { id: kvcache, term: KV cache, def: "Stored attention keys and values, so a model doesn't recompute past tokens on every step." }
+- { id: pgvector, term: pgvector, def: "A Postgres extension for storing embeddings and running nearest-neighbour search." }
+- { id: langgraph, term: LangGraph, def: "A library for writing agents as explicit state machines with loops and branches." }
+- { id: faiss, term: FAISS, def: "Facebook's library for fast similarity search over vectors, usually kept in memory or on disk." }
+- { id: hnsw, term: HNSW, def: "A layered graph index that finds approximate nearest neighbours without scanning every vector." }
+- { id: bm25, term: BM25, def: "Classic keyword ranking: rare words count more, and long documents don't win just by being long." }
+- { id: tsvector, term: tsvector, def: "Postgres's full-text search type: a document stored as normalised, searchable words." }
+- { id: reranker, term: reranker, match: [rerank, reranks, reranking], def: "A second model that rereads the top search hits next to the question and reorders them." }
+- { id: embeddings, term: embeddings, match: [embedding, embeds, embed], def: "Text turned into vectors, so similar meaning ends up close together." }

@@ -1,0 +1,37 @@
+---
+interface Props {
+  id: string;
+  title: string;
+  label: string; // short plain-language line beside the heading
+}
+const { id, title, label } = Astro.props;
+---
+
+<section id={id} class="span">
+  <header class="head">
+    <h2>{title}</h2>
+    <p class="tag">{label}</p>
+  </header>
+  <slot />
+</section>
+
+<style>
+  .span {
+    padding-top: 7rem;
+  }
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem 2rem;
+    margin-bottom: 2rem;
+  }
+  .tag {
+    margin: 0;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(2.6rem, 8vw, 5rem);
+  }
+</style>

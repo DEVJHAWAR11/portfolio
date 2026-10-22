@@ -1,0 +1,537 @@
+---
+// Contribution map and pull requests to other people's repos.
+// Rendered from a build-time snapshot, then refreshed from /api/github (cached for an hour) when that is newer.
+import { getGitHub } from '@/lib/github';
+import { heatmap, statsList, prRows, packCals, total } from '@/lib/oss-render';
+import Pending from '@/components/Pending/Pending.astro';
+
+const { prs, cals, at } = await getGitHub();
+const first = cals[0];
+const counts = { merged: 0, open: 0, closed: 0 };
+prs.forEach((p) => counts[p.state]++);
+const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, n]) => [k, k[0].toUpperCase() + k.slice(1), n])].filter(
+  ([k, , n]) => k !== 'closed' || (n as number) > 0,
+) as [string, string, number][];
+---
+
+<div class="oss" data-oss data-at={at} data-cals={packCals(cals)}>
+  {
+    first && (
+      <div class="blk activity">
+        <div class="ahead">
+          <div class="years mono" role="group" aria-label="Which year" data-years>
+            {cals.map((c, i) => (
+              <button type="button" data-y={c.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+                {c.label} <span>{total(c.days).toLocaleString('en-IN')}</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" class="btn sm" data-replay>
+            Replay the year
+          </button>
+        </div>
+        <div class="map" data-map set:html={heatmap(first.days)} />
+        <p class="mono cap" data-cap aria-live="polite">
+          Each dot is a day. Bigger dots mean more commits, PRs and reviews.
+        </p>
+        <dl class="stats mono" data-stats set:html={statsList(first.days)} />
+      </div>
+    )
+  }
+
+  {prs.length === 0 && <div data-pending><Pending what="pull requests across other repos, live from GitHub" stage={4} /></div>}
+  <div data-prwrap hidden={prs.length === 0}>
+    <div class="prhead">
+      <div class="filters" role="group" aria-label="Filter pull requests">
+        {
+          filters.map(([k, label, n], i) => (
+            <button type="button" class:list={['chip', k]} data-f={k} aria-pressed={i === 0 ? 'true' : 'false'}>
+              {k !== 'all' && <span class:list={['dot', { ok: k === 'merged', pend: k === 'open', fail: k === 'closed' }]} />}
+              {label} <span class="n">{n}</span>
+            </button>
+          ))
+        }
+      </div>
+      <p class="mono checked">
+        Checked GitHub <span data-ago>at build time</span>
+      </p>
+    </div>
+    <ul class="prs" data-prs set:html={prRows(prs)} />
+    <button class="btn showall" type="button" data-showall aria-expanded="false" hidden>
+      <span>Show all</span>
+      <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+        <path d="M2 4.5 6 8.5 10 4.5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  import { heatmap, statsList, prRows, packCals, unpackCals, dayLabel, total } from '@/lib/oss-render';
+  import type { Cal, Day, GitHubData, PR } from '@/lib/github';
+
+  const root = document.querySelector<HTMLElement>('[data-oss]');
+  if (root) {
+    const SHOWN = 8;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s);
+    const map = $('[data-map]');
+    const cap = $('[data-cap]');
+    const list = $('[data-prs]');
+    const more = $<HTMLButtonElement>('[data-showall]');
+    const capText = cap?.textContent ?? '';
+    let filter = 'all';
+    let open = false;
+
+    let cals: Cal[] = unpackCals(root.dataset.cals!);
+    let year = cals[0]?.id;
+    let days: Day[] = cals[0]?.days ?? [];
+    if (map) map.scrollLeft = map.scrollWidth;
+
+    // The past year and the current one still have a running streak; older years don't.
+    const live = (c: Cal) => c.id === 'past' || c.id === String(new Date().getFullYear());
+    function showYear(id: string) {
+      const c = cals.find((x) => x.id === id) ?? cals[0];
+      if (!c || !map) return;
+      year = c.id;
+      days = c.days;
+      map.innerHTML = heatmap(c.days, c.id === 'past' ? 'the past year' : c.label);
+      map.scrollLeft = map.scrollWidth;
+      $('[data-stats]')!.innerHTML = statsList(c.days, live(c));
+      root!.querySelectorAll<HTMLElement>('[data-y]').forEach((b) => {
+        b.setAttribute('aria-pressed', String(b.dataset.y === c.id));
+        b.querySelector('span')!.textContent = total(cals.find((x) => x.id === b.dataset.y)?.days ?? []).toLocaleString('en-IN');
+      });
+    }
+    root.querySelectorAll<HTMLButtonElement>('[data-y]').forEach((b) => b.addEventListener('click', () => !replaying && showYear(b.dataset.y!)));
+
+    // Hovering or tapping a dot names that day in the caption.
+    map?.addEventListener('pointerover', (e) => {
+      const i = (e.target as Element).getAttribute('data-i');
+      if (i && cap) cap.textContent = dayLabel(days[Number(i)]);
+    });
+    map?.addEventListener('pointerleave', () => cap && (cap.textContent = capText));
+
+    // Replay fills the year in week by week while the total counts up.
+    const replay = $<HTMLButtonElement>('[data-replay]');
+    let replaying = false;
+    replay?.addEventListener('click', async () => {
+      const totalEl = $('[data-total]');
+      const dots = [...map!.querySelectorAll<SVGCircleElement>('circle')];
+      const weeks = Number(dots.at(-1)?.dataset.w ?? 0) + 1;
+      replay.disabled = replaying = true;
+      map!.classList.add('replay');
+      let sum = 0;
+      for (let w = 0; w < weeks; w++) {
+        for (const c of dots) {
+          if (Number(c.dataset.w) !== w) continue;
+          c.classList.add('on');
+          sum += days[Number(c.dataset.i)].n;
+        }
+        if (totalEl) totalEl.textContent = sum.toLocaleString('en-IN');
+        if (cap) cap.textContent = `Week ${w + 1} of ${weeks}`;
+        if (!reduce) await new Promise((r) => setTimeout(r, 45));
+      }
+      map!.classList.remove('replay');
+      dots.forEach((c) => c.classList.remove('on'));
+      if (cap) cap.textContent = capText;
+      replay.disabled = replaying = false;
+    });
+
+    function applyFilter() {
+      if (!list) return;
+      const rows = [...list.children] as HTMLElement[];
+      const match = rows.filter((r) => filter === 'all' || r.dataset.state === filter);
+      rows.forEach((r) => (r.hidden = true));
+      match.forEach((r, i) => (r.hidden = !open && i >= SHOWN));
+      if (more) {
+        more.hidden = match.length <= SHOWN;
+        more.setAttribute('aria-expanded', String(open));
+        more.querySelector('span')!.textContent = open ? 'Show fewer' : `Show all ${match.length}`;
+      }
+    }
+    root.querySelectorAll<HTMLButtonElement>('[data-f]').forEach((b) =>
+      b.addEventListener('click', () => {
+        filter = b.dataset.f!;
+        root.querySelectorAll('[data-f]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        applyFilter();
+      }),
+    );
+    more?.addEventListener('click', () => {
+      open = !open;
+      applyFilter();
+    });
+    applyFilter();
+
+    const agoEl = $('[data-ago]');
+    const showAge = () => {
+      if (!agoEl) return;
+      const min = Math.round((Date.now() - Date.parse(root.dataset.at!)) / 6e4);
+      agoEl.textContent =
+        min < 1 ? 'just now' : min < 60 ? `${min} min ago` : min < 48 * 60 ? `${Math.round(min / 60)} h ago` : `${Math.round(min / 1440)} days ago`;
+    };
+    showAge();
+    setInterval(showAge, 6e4);
+
+    function update(g: GitHubData) {
+      if (g.cals?.length && map && !replaying) {
+        cals = g.cals;
+        root!.dataset.cals = packCals(g.cals);
+        showYear(year);
+      }
+      if (g.prs.length && list) {
+        $('[data-pending]')?.remove();
+        $('[data-prwrap]')!.hidden = false;
+        list.innerHTML = prRows(g.prs);
+        const counts: Record<string, number> = { all: g.prs.length, merged: 0, open: 0, closed: 0 };
+        g.prs.forEach((p: PR) => counts[p.state]++);
+        root!.querySelectorAll<HTMLElement>('[data-f]').forEach((b) => (b.querySelector('.n')!.textContent = String(counts[b.dataset.f!])));
+        applyFilter();
+      }
+      root!.dataset.at = g.at;
+      showAge();
+    }
+
+    // The function only exists once deployed on Vercel; anywhere else this quietly keeps the build-time snapshot.
+    const refresh = () =>
+      fetch('/api/github')
+        .then((r) => (r.ok && r.headers.get('content-type')?.includes('json') ? r.json() : null))
+        .then((g: GitHubData | null) => g && Date.parse(g.at) > Date.parse(root.dataset.at!) && update(g))
+        .catch(() => {});
+    ('requestIdleCallback' in window ? requestIdleCallback : setTimeout)(refresh as () => void);
+  }
+</script>
+
+<style>
+  .activity {
+    margin-bottom: 2.5rem;
+    padding: 1.1rem 1.25rem 0;
+  }
+  .ahead {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    margin-bottom: 0.9rem;
+  }
+  .cap {
+    margin: 0.7rem 0 0;
+    min-height: 1.3em;
+    color: var(--muted);
+  }
+  .years {
+    display: flex;
+    flex-wrap: wrap;
+    border: 1px solid var(--edge);
+  }
+  .years button {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .years button + button {
+    border-left: 1px solid var(--edge);
+  }
+  .years button:hover {
+    color: var(--fg);
+  }
+  .years button span {
+    margin-left: 0.3rem;
+    color: var(--faint);
+  }
+  .years button[aria-pressed='true'] {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .years button[aria-pressed='true'] span {
+    color: inherit;
+    opacity: 0.6;
+  }
+  /* On a phone the year keeps a readable size and scrolls sideways, starting at the latest weeks. */
+  .map {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .map :global(svg) {
+    display: block;
+    width: 100%;
+    min-width: 34rem;
+    height: auto;
+  }
+  .map :global(text) {
+    font: 400 7px var(--mono);
+    fill: var(--faint);
+  }
+  .map :global(circle) {
+    fill: var(--accent);
+    transition: opacity 0.15s;
+  }
+  .map :global(circle.l0) {
+    fill: var(--faint);
+    opacity: 0.4;
+  }
+  .map :global(circle.l1) {
+    opacity: 0.7;
+  }
+  .map :global(circle:hover) {
+    fill: var(--fg);
+    opacity: 1;
+  }
+  .map:global(.replay) :global(circle:not(.on)) {
+    opacity: 0;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: 1.1rem -1.25rem 0;
+    border-top: 1px solid var(--edge);
+  }
+  .stats :global(div) {
+    padding: 0.8rem 1.25rem 0.9rem;
+    min-width: 0;
+  }
+  .stats :global(div + div) {
+    border-left: 1px solid var(--edge);
+  }
+  .stats :global(dt) {
+    font-size: 0.68rem;
+    color: var(--faint);
+  }
+  .stats :global(dd) {
+    margin: 0.25rem 0 0;
+    font-size: 0.86rem;
+    color: var(--fg);
+  }
+  .prhead {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .filters .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+  }
+  .filters .chip:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  .filters .chip[aria-pressed='true'] {
+    border-color: var(--fg);
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .filters .n {
+    opacity: 0.65;
+  }
+  .checked {
+    margin: 0;
+    color: var(--faint);
+  }
+  .prs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+  }
+  .prs :global(li) {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+  }
+  .prs :global(li[hidden]) {
+    display: none;
+  }
+  .prs :global(li + li) {
+    border-top: 1px solid var(--line);
+  }
+  /* The branch drawing on the left of each row. */
+  .prs :global(.graph) {
+    position: relative;
+    margin-left: 0.5rem;
+  }
+  .prs :global(.graph svg) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .prs :global(.graph path) {
+    fill: none;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .prs :global(.graph .main) {
+    stroke: var(--faint);
+  }
+  .prs :global(.graph .br) {
+    stroke: var(--c);
+  }
+  .prs :global(li) {
+    --c: var(--ok);
+  }
+  .prs :global(li[data-state='open']) {
+    --c: var(--pend);
+  }
+  .prs :global(li[data-state='closed']) {
+    --c: var(--fail);
+  }
+  .prs :global(.node),
+  .prs :global(.join) {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    translate: -50% -50%;
+  }
+  .prs :global(.node) {
+    left: calc(26 / 36 * 100%);
+    top: 50%;
+    background: var(--c);
+  }
+  .prs :global(.join) {
+    left: calc(8 / 36 * 100%);
+    top: 0;
+    width: 7px;
+    height: 7px;
+    background: var(--panel);
+    border: 1.5px solid var(--ok);
+  }
+  .prs :global(li[data-state='open'] .node) {
+    background: var(--panel);
+    border: 2px solid var(--c);
+    animation: wait 2s ease-in-out infinite;
+  }
+  .prs :global(li[data-state='closed'] .node) {
+    border-radius: 0;
+    background: none;
+    rotate: 45deg;
+  }
+  .prs :global(li[data-state='closed'] .node)::before,
+  .prs :global(li[data-state='closed'] .node)::after {
+    content: '';
+    position: absolute;
+    inset: 3.5px 0;
+    background: var(--c);
+  }
+  .prs :global(li[data-state='closed'] .node)::after {
+    inset: 0 3.5px;
+  }
+  @keyframes wait {
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--pend) 25%, transparent);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prs :global(.node) {
+      animation: none !important;
+    }
+  }
+  .prs :global(a) {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 0.9rem;
+    align-items: center;
+    padding: 0.85rem 1rem 0.85rem 0.5rem;
+    transition: background 0.2s;
+  }
+  .prs :global(a:hover) {
+    background: var(--accent-soft);
+  }
+  .prs :global(img) {
+    border: 1px solid var(--edge);
+    background: var(--bg);
+  }
+  .prs :global(.main) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .prs :global(.repo) {
+    color: var(--muted);
+  }
+  .prs :global(.num),
+  .prs :global(.when) {
+    color: var(--faint);
+  }
+  .prs :global(.when) {
+    margin-left: 0.4rem;
+  }
+  .prs :global(.title) {
+    font-size: 0.97rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .prs :global(a:hover .title) {
+    color: var(--accent);
+  }
+  .prs :global(.side) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+  }
+  .prs :global(.state) {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid currentColor;
+    font-size: 0.66rem;
+    color: var(--c);
+  }
+  .prs :global(.date) {
+    color: var(--faint);
+    font-size: 0.68rem;
+  }
+  .showall {
+    margin-top: 1rem;
+    background: var(--panel);
+  }
+  .showall svg {
+    transition: rotate 0.2s var(--ease);
+  }
+  .showall[aria-expanded='true'] svg {
+    rotate: 180deg;
+  }
+  @media (max-width: 860px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    /* Total across the top, then two per row. */
+    .stats :global(div:first-child) {
+      grid-column: 1 / -1;
+    }
+    .stats :global(div + div) {
+      border-top: 1px solid var(--edge);
+    }
+    .stats :global(div:nth-child(even)) {
+      border-left: 0;
+    }
+  }
+  @media (max-width: 560px) {
+    .prs :global(a) {
+      grid-template-columns: 28px minmax(0, 1fr);
+    }
+    .prs :global(.side) {
+      grid-column: 2;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .prs :global(.title) {
+      white-space: normal;
+    }
+  }
+</style>
