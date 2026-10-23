@@ -84,7 +84,7 @@ const palettes = [
         <span data-repos>{repos}</span> repos. Checked GitHub <span data-ago>at build time</span>
       </p>
     </div>
-    <ul class="prs" data-prs set:html={prGroups(prs)} />
+    <div data-prs set:html={prGroups(prs)} />
   </div>
 </div>
 
@@ -220,6 +220,8 @@ const palettes = [
         card.hidden = !any;
         shown += Number(any);
       });
+      // The smaller-repos fold disappears when the filter leaves nothing in it.
+      list.querySelectorAll<HTMLElement>('[data-more]').forEach((d) => (d.hidden = !d.querySelector('[data-repo]:not([hidden])')));
       const n = $('[data-repos]');
       if (n) n.textContent = String(shown);
     }
@@ -544,77 +546,119 @@ const palettes = [
   }
 
   /* One card per repo, flowing into two columns. */
-  .prs {
+  [data-prs] :global(.prs) {
     margin: 0;
     padding: 0;
     list-style: none;
     columns: 2 24rem;
     column-gap: 1rem;
   }
-  .prs :global(.repo) {
+  [data-prs] :global(.repo) {
     break-inside: avoid;
     margin-bottom: 1rem;
     border: 1px solid var(--edge);
     background: var(--panel);
   }
-  .prs :global([hidden]) {
+  [data-prs] :global([hidden]) {
     display: none;
   }
-  .prs :global(.rh) {
+  [data-prs] :global(.rh) {
     display: grid;
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: 30px minmax(0, 1fr) auto;
     gap: 0.1rem 0.8rem;
     align-items: center;
     padding: 0.9rem 1.1rem 0.6rem;
   }
-  .prs :global(.rh img) {
+  [data-prs] :global(.rh img) {
     grid-row: span 2;
     border: 1px solid var(--edge);
     background: var(--bg);
   }
-  .prs :global(.name) {
+  [data-prs] :global(.name) {
     font-size: 0.9rem;
     font-weight: 600;
     overflow-wrap: anywhere;
   }
-  .prs :global(.name span) {
+  [data-prs] :global(.name span) {
     font-weight: 400;
     color: var(--faint);
   }
-  .prs :global(.name:hover) {
+  [data-prs] :global(.name:hover) {
     color: var(--accent);
   }
-  .prs :global(.tally) {
+  [data-prs] :global(.stars) {
+    grid-column: 3;
+    grid-row: 1;
+    font-size: 0.7rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  [data-prs] :global(.more) {
+    margin-top: 0.2rem;
+  }
+  [data-prs] :global(.more summary) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3rem 0.7rem;
+    margin-bottom: 1rem;
+    padding: 0.7rem 1rem;
+    border: 1px dashed var(--edge);
+    background: var(--panel);
+    font-size: 0.78rem;
+    cursor: pointer;
+    list-style: none;
+  }
+  [data-prs] :global(.more summary::-webkit-details-marker) {
+    display: none;
+  }
+  [data-prs] :global(.more summary)::before {
+    content: '+';
+    width: 0.8rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  [data-prs] :global(.more[open] summary)::before {
+    content: '−';
+  }
+  [data-prs] :global(.more summary:hover) {
+    border-color: var(--fg);
+  }
+  [data-prs] :global(.more summary span) {
+    color: var(--faint);
+  }
+  [data-prs] :global(.tally) {
+    grid-column: 2 / -1;
     display: flex;
     align-items: center;
     gap: 0.5rem;
     font-size: 0.68rem;
     color: var(--muted);
   }
-  .prs :global(.bar) {
+  [data-prs] :global(.bar) {
     display: flex;
     gap: 2px;
     width: 3.2rem;
     height: 4px;
   }
-  .prs :global(.bar i) {
+  [data-prs] :global(.bar i) {
     background: var(--ok);
   }
-  .prs :global(.bar .pend) {
+  [data-prs] :global(.bar .pend) {
     background: var(--pend);
   }
-  .prs :global(.bar .fail) {
+  [data-prs] :global(.bar .fail) {
     background: var(--fail);
   }
 
   /* The repo's line, with a stop for each PR. */
-  .prs :global(.track) {
+  [data-prs] :global(.track) {
     position: relative;
     margin: 0;
     padding: 0 0 0.5rem;
     list-style: none;
   }
-  .prs :global(.track)::before {
+  [data-prs] :global(.track)::before {
     content: '';
     position: absolute;
     left: calc(1.1rem + 4.25px);
@@ -623,26 +667,26 @@ const palettes = [
     width: 1.5px;
     background: var(--edge);
   }
-  .prs :global(.track li) {
+  [data-prs] :global(.track li) {
     --c: var(--ok);
   }
-  .prs :global(.track li[data-state='open']) {
+  [data-prs] :global(.track li[data-state='open']) {
     --c: var(--pend);
   }
-  .prs :global(.track li[data-state='closed']) {
+  [data-prs] :global(.track li[data-state='closed']) {
     --c: var(--fail);
   }
-  .prs :global(.track a) {
+  [data-prs] :global(.track a) {
     display: grid;
     grid-template-columns: 10px minmax(0, 1fr);
     gap: 0.1rem 0.9rem;
     padding: 0.45rem 1.1rem;
     transition: background 0.2s;
   }
-  .prs :global(.track a:hover) {
+  [data-prs] :global(.track a:hover) {
     background: var(--accent-soft);
   }
-  .prs :global(.stop) {
+  [data-prs] :global(.stop) {
     position: relative;
     width: 10px;
     height: 10px;
@@ -650,24 +694,24 @@ const palettes = [
     border-radius: 50%;
     background: var(--c);
   }
-  .prs :global(li[data-state='open'] .stop) {
+  [data-prs] :global(li[data-state='open'] .stop) {
     background: var(--panel);
     border: 2px solid var(--c);
     animation: wait 2s ease-in-out infinite;
   }
-  .prs :global(li[data-state='closed'] .stop) {
+  [data-prs] :global(li[data-state='closed'] .stop) {
     border-radius: 0;
     background: var(--panel);
     rotate: 45deg;
   }
-  .prs :global(li[data-state='closed'] .stop)::before,
-  .prs :global(li[data-state='closed'] .stop)::after {
+  [data-prs] :global(li[data-state='closed'] .stop)::before,
+  [data-prs] :global(li[data-state='closed'] .stop)::after {
     content: '';
     position: absolute;
     inset: 4px 0;
     background: var(--c);
   }
-  .prs :global(li[data-state='closed'] .stop)::after {
+  [data-prs] :global(li[data-state='closed'] .stop)::after {
     inset: 0 4px;
   }
   @keyframes wait {
@@ -676,24 +720,24 @@ const palettes = [
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .prs :global(.stop) {
+    [data-prs] :global(.stop) {
       animation: none !important;
     }
   }
-  .prs :global(.t) {
+  [data-prs] :global(.t) {
     font-size: 0.95rem;
     font-weight: 500;
     line-height: 1.4;
   }
-  .prs :global(.track a:hover .t) {
+  [data-prs] :global(.track a:hover .t) {
     color: var(--accent);
   }
-  .prs :global(.m) {
+  [data-prs] :global(.m) {
     grid-column: 2;
     font-size: 0.68rem;
     color: var(--faint);
   }
-  .prs :global(.num) {
+  [data-prs] :global(.num) {
     margin-right: 0.3rem;
     color: var(--muted);
   }

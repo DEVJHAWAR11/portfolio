@@ -13,6 +13,7 @@ export interface PR {
   state: PRState;
   created: string;
   closed?: string; // merged or closed date
+  stars?: number; // the repo's stars, used to order the list
 }
 /** One day of the contribution calendar: date, count and GitHub's 0-4 level. */
 export interface Day {
@@ -53,7 +54,7 @@ async function fetchPRs(retry = true): Promise<PR[]> {
   }
   if (!res.ok) throw new Error(`PR search ${res.status}`);
   const json = (await res.json()) as { items: any[] };
-  return json.items.map((i) => ({
+  const prs: PR[] = json.items.map((i) => ({
     repo: i.repository_url.split('/repos/')[1],
     number: i.number,
     title: i.title,
@@ -62,6 +63,18 @@ async function fetchPRs(retry = true): Promise<PR[]> {
     created: i.created_at,
     ...(i.closed_at ? { closed: i.closed_at } : {}),
   }));
+  // Only repos owned by organizations count, not other people's personal repos. A repo that can't be
+  // looked up is kept, just without stars.
+  const info = new Map(
+    await Promise.all(
+      [...new Set(prs.map((p) => p.repo))].map(async (repo) => {
+        const r = await fetch(`https://api.github.com/repos/${repo}`, { headers: headers() }).catch(() => null);
+        const j = r?.ok ? ((await r.json()) as { owner: { type: string }; stargazers_count: number }) : null;
+        return [repo, j && { org: j.owner.type === 'Organization', stars: j.stargazers_count }] as const;
+      }),
+    ),
+  );
+  return prs.filter((p) => info.get(p.repo)?.org !== false).map((p) => ({ ...p, stars: info.get(p.repo)?.stars }));
 }
 
 // With a token the GraphQL API gives exact counts; without one, the public calendar page has the same data.
