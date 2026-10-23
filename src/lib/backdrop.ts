@@ -1,13 +1,14 @@
-// The page's dot grid wakes up around the pointer, and a click sends a ripple through it.
-// Drawn on one fixed canvas behind everything, only while something is moving. Mouse and trackpad only,
-// and off for anyone who prefers reduced motion.
+// The page's dot grid wakes up around the mouse, and a click or a tap sends a ripple through it.
+// Drawn on one fixed canvas behind everything, only while something is moving, and never catching a click.
+// On a phone only a still tap ripples (smaller), so scrolling never sets it off. Off with reduced motion.
 const GAP = 20; // matches the body's background-size, so these dots sit exactly on the printed ones
 const GLOW = 150;
 const RING = 36;
 const RIPPLE_MS = 1100;
 const RIPPLE_R = 520;
+const TAP_R = 240;
 
-if (matchMedia('(pointer: fine)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const canvas = document.createElement('canvas');
   canvas.setAttribute('aria-hidden', 'true');
   canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none';
@@ -34,7 +35,7 @@ if (matchMedia('(pointer: fine)').matches && !matchMedia('(prefers-reduced-motio
 
   const ptr = { x: -1e4, y: -1e4, in: false };
   let glow = 0;
-  const ripples: { x: number; y: number; t0: number }[] = []; // page coordinates, so they scroll with the dots
+  const ripples: { x: number; y: number; t0: number; max: number }[] = []; // page coordinates, so they scroll with the dots
 
   // Each dot within reach gets the strongest of the glow and any ripple passing over it.
   function draw(now: number) {
@@ -42,7 +43,7 @@ if (matchMedia('(pointer: fine)').matches && !matchMedia('(prefers-reduced-motio
     ctx.fillStyle = color;
     const sx = scrollX;
     const sy = scrollY;
-    const live = ripples.map((r) => ({ x: r.x - sx, y: r.y - sy, rad: ((now - r.t0) / RIPPLE_MS) * RIPPLE_R, fade: 1 - (now - r.t0) / RIPPLE_MS }));
+    const live = ripples.map((r) => ({ x: r.x - sx, y: r.y - sy, rad: ((now - r.t0) / RIPPLE_MS) * r.max, fade: 1 - (now - r.t0) / RIPPLE_MS }));
     const areas = [
       glow > 0.01 && { x: ptr.x, y: ptr.y, reach: GLOW },
       ...live.map((r) => ({ x: r.x, y: r.y, reach: r.rad + RING })),
@@ -110,9 +111,29 @@ if (matchMedia('(pointer: fine)').matches && !matchMedia('(prefers-reduced-motio
   document.addEventListener('mouseout', (e) => !e.relatedTarget && (ptr.in = false));
   addEventListener('blur', () => (ptr.in = false));
   addEventListener('scroll', () => ptr.in && wake(), { passive: true });
-  addEventListener('pointerdown', (e) => {
+  const ripple = (x: number, y: number, max: number) => {
     if (ripples.length > 4) ripples.shift();
-    ripples.push({ x: e.clientX + scrollX, y: e.clientY + scrollY, t0: performance.now() });
+    ripples.push({ x: x + scrollX, y: y + scrollY, t0: performance.now(), max });
     wake();
-  });
+  };
+  // A touch counts as a tap only if it lifts quickly without moving; a scroll cancels it.
+  let tap: { x: number; y: number; t: number } | null = null;
+  addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.pointerType === 'touch') tap = { x: e.clientX, y: e.clientY, t: performance.now() };
+      else ripple(e.clientX, e.clientY, RIPPLE_R);
+    },
+    { passive: true },
+  );
+  addEventListener(
+    'pointerup',
+    (e) => {
+      if (e.pointerType !== 'touch' || !tap) return;
+      if (performance.now() - tap.t < 300 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10) ripple(e.clientX, e.clientY, TAP_R);
+      tap = null;
+    },
+    { passive: true },
+  );
+  addEventListener('pointercancel', () => (tap = null), { passive: true });
 }

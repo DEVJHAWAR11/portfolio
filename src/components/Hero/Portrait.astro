@@ -1,6 +1,6 @@
 ---
 // My photo as halftone dots (built by /halftone.svg). The dots are a CSS mask, so they take the theme's colours.
-// A warm copy shows through a circle that follows the cursor.
+// A warm copy shows through a circle that follows the cursor, or moves to where you tap on a phone.
 ---
 
 <div class="portrait" data-portrait role="img" aria-label="Portrait of Dev Jhawar, drawn in dots">
@@ -14,24 +14,50 @@
 
 <script>
   const el = document.querySelector<HTMLElement>('[data-portrait]');
-  if (el && matchMedia('(hover: hover)').matches) {
-    let raf = 0;
-    el.addEventListener('pointermove', (e) => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const r = el.getBoundingClientRect();
-        el.style.setProperty('--x', `${((e.clientX - r.left) / r.width) * 100}%`);
-        el.style.setProperty('--y', `${((e.clientY - r.top) / r.height) * 100}%`);
+  if (el) {
+    const moveTo = (e: { clientX: number; clientY: number }) => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--x', `${((e.clientX - r.left) / r.width) * 100}%`);
+      el.style.setProperty('--y', `${((e.clientY - r.top) / r.height) * 100}%`);
+    };
+    if (matchMedia('(hover: hover)').matches) {
+      let raf = 0;
+      el.addEventListener('pointermove', (e) => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => moveTo(e));
       });
-    });
-    el.addEventListener('pointerleave', () => {
-      el.style.removeProperty('--x');
-      el.style.removeProperty('--y');
-    });
+      el.addEventListener('pointerleave', () => {
+        el.style.removeProperty('--x');
+        el.style.removeProperty('--y');
+      });
+    } else {
+      // On a phone the circle glides to wherever you tap. It only listens for taps, so scrolling over the photo works as usual.
+      el.classList.add('tap');
+      el.addEventListener('click', moveTo);
+    }
   }
 </script>
 
 <style>
+  /* Registered so a tap can animate the circle's position. */
+  @property --x {
+    syntax: '<percentage>';
+    inherits: true;
+    initial-value: 70%;
+  }
+  @property --y {
+    syntax: '<percentage>';
+    inherits: true;
+    initial-value: 84%;
+  }
+  .portrait.tap {
+    transition: --x 0.45s var(--ease), --y 0.45s var(--ease);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .portrait.tap {
+      transition: none;
+    }
+  }
   .portrait {
     position: relative;
     aspect-ratio: 1;
