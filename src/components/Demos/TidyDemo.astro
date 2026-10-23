@@ -1,0 +1,418 @@
+---
+// TidyFlow in miniature: read a messy folder, propose folders, copy on approval with a hash check, and undo.
+// The files and their contents are made up; the real app reads actual files and runs OCR on the device.
+interface File {
+  name: string;
+  reads: string;
+  ocr?: boolean;
+  detailed?: string; // folder at the Detailed level
+  fewer?: string; // folder at the Fewer level
+  review?: boolean; // not sure, wait for the user
+  dupOf?: number; // index of the file this duplicates
+}
+const files: File[] = [
+  { name: 'scan_0412.pdf', reads: 'Invoice #4471, total ₹2,360', ocr: true, detailed: 'Invoices', fewer: 'Documents' },
+  { name: 'scan_0413.pdf', reads: 'Broadband bill for March', ocr: true, detailed: 'Invoices', fewer: 'Documents' },
+  { name: 'IMG_2231.HEIC', reads: 'photo, 4032 × 3024', detailed: 'Photos', fewer: 'Images' },
+  { name: 'IMG_2231 (1).HEIC', reads: 'same image as IMG_2231.HEIC', dupOf: 2 },
+  { name: 'Screenshot 22.10.04.png', reads: 'boarding pass, BBI to BLR', ocr: true, detailed: 'Travel', fewer: 'Images' },
+  { name: 'boarding_pass(2).pdf', reads: 'Bhubaneswar to Bengaluru, seat 14C', detailed: 'Travel', fewer: 'Documents' },
+  { name: 'resume_v7_final.docx', reads: 'Education, Experience, Projects', detailed: 'Career', fewer: 'Documents' },
+  { name: 'offer_letter.pdf', reads: '"We are pleased to offer you…"', detailed: 'Career', fewer: 'Documents' },
+  { name: 'main.py', reads: 'from fastapi import FastAPI', detailed: 'Code', fewer: 'Code' },
+  { name: 'budget_2026.xlsx', reads: 'Rent, Food, Travel by month', detailed: 'Finance', fewer: 'Documents' },
+  { name: 'notes (3).md', reads: 'LangGraph state machine notes', detailed: 'Notes', fewer: 'Documents' },
+  { name: 'untitled.txt', reads: '"renew it before June"', review: true },
+];
+---
+
+<div class="demo tidy" data-tidy={JSON.stringify(files)}>
+  <div class="bar">
+    <div class="steps">
+      <span class="hint mono">Click each step in order</span>
+      <button type="button" class="btn sm solid" data-act="read">1. Read files</button>
+      <button type="button" class="btn sm" data-act="plan" disabled>2. Propose folders</button>
+      <button type="button" class="btn sm" data-act="approve" disabled>3. Approve</button>
+      <button type="button" class="btn sm" data-act="undo" disabled>4. Undo</button>
+    </div>
+    <div class="level mono" role="radiogroup" aria-label="Folder detail">
+      <label><input type="radio" name="t-level" value="fewer" /> Fewer</label>
+      <label><input type="radio" name="t-level" value="detailed" checked /> Detailed</label>
+    </div>
+  </div>
+  <p class="status" id="t-status" aria-live="polite">
+    Click <b>1. Read files</b> to start. TidyFlow looks inside each file, not just at its name.
+  </p>
+
+  <div class="panes">
+    <section>
+      <h4 class="mono">Downloads <span>{files.length} files</span></h4>
+      <ul class="src">
+        {
+          files.map((f, i) => (
+            <li data-i={i}>
+              <span class="fn">{f.name}</span>
+              <span class="rd mono">
+                {f.ocr && <i>OCR</i>}
+                {f.reads}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+    <section>
+      <h4 class="mono">Organized <span id="t-count">nothing yet</span></h4>
+      <div class="out" id="t-out"><p class="empty">Folders appear here once a plan is proposed. Nothing is moved until you approve.</p></div>
+    </section>
+  </div>
+</div>
+
+<script>
+  interface File {
+    name: string;
+    reads: string;
+    detailed?: string;
+    fewer?: string;
+    review?: boolean;
+    dupOf?: number;
+  }
+  const root = document.querySelector<HTMLElement>('[data-tidy]');
+  if (root) {
+    const files: File[] = JSON.parse(root.dataset.tidy!);
+    const out = root.querySelector('#t-out')!;
+    const count = root.querySelector('#t-count')!;
+    const status = root.querySelector('#t-status')!;
+    const src = [...root.querySelectorAll<HTMLElement>('.src li')];
+    const btn = (a: string) => root.querySelector<HTMLButtonElement>(`[data-act="${a}"]`)!;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, reduce ? 0 : ms));
+    let stage: 'start' | 'read' | 'planned' | 'copied' = 'start';
+    let busy = false;
+
+    const level = () => root.querySelector<HTMLInputElement>('input[name="t-level"]:checked')!.value as 'fewer' | 'detailed';
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
+    const hash = (i: number) => ((i + 7) * 2654435761 >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+
+    function setButtons() {
+      const on = { read: stage === 'start', plan: stage === 'read' || stage === 'planned', approve: stage === 'planned', undo: stage === 'copied' };
+      // Only the next step is filled in; re-proposing stays available but quiet.
+      const next = { start: 'read', read: 'plan', planned: 'approve', copied: 'undo' }[stage];
+      for (const [a, v] of Object.entries(on)) {
+        btn(a).disabled = busy || !v;
+        btn(a).classList.toggle('solid', a === next && !busy);
+      }
+    }
+
+    function renderPlan() {
+      const lv = level();
+      const groups = new Map<string, number[]>();
+      files.forEach((f, i) => {
+        const folder = f[lv];
+        if (folder) groups.set(folder, [...(groups.get(folder) ?? []), i]);
+      });
+      const review = files.flatMap((f, i) => (f.review ? [i] : []));
+      const dups = files.flatMap((f, i) => (f.dupOf !== undefined ? [i] : []));
+      out.innerHTML =
+        [...groups]
+          .map(
+            ([folder, idx]) =>
+              `<div class="folder"><p class="fold">▾ ${folder}/ <span>${idx.length}</span></p><ul>${idx
+                .map((i) => `<li data-f="${i}"><span class="fn">${esc(files[i].name)}</span><span class="tick mono"></span></li>`)
+                .join('')}</ul></div>`,
+          )
+          .join('') +
+        `<div class="folder flag"><p class="fold">Needs your review</p><ul>${review
+          .map((i) => `<li><span class="fn">${esc(files[i].name)}</span><span class="tick mono">not sure, left in place</span></li>`)
+          .join('')}</ul></div>` +
+        `<div class="folder flag"><p class="fold">Duplicates</p><ul>${dups
+          .map((i) => `<li><span class="fn">${esc(files[i].name)}</span><span class="tick mono">same as ${esc(files[files[i].dupOf!].name)}</span></li>`)
+          .join('')}</ul></div>`;
+      count.textContent = `${groups.size} folders proposed`;
+    }
+
+    const say = (html: string) => (status.innerHTML = html);
+
+    btn('read').addEventListener('click', async () => {
+      busy = true;
+      setButtons();
+      out.innerHTML = '<p class="empty">Reading…</p>';
+      for (const [i, li] of src.entries()) {
+        li.classList.add('reading', 'read');
+        say(`Reading file ${i + 1} of ${src.length}: <b>${esc(files[i].name)}</b>`);
+        await wait(170);
+        li.classList.remove('reading');
+      }
+      stage = 'read';
+      busy = false;
+      say('Read all 12 files (3 needed OCR, done on this device). Their contents are shown under each name. Nothing has moved. Next: <b>2. Propose folders</b>.');
+      out.innerHTML =
+        '<p class="empty"><b>12 files read.</b><br>3 scans and screenshots read with OCR, 1 duplicate spotted, 1 file too vague to place. Propose folders to see the plan.</p>';
+      setButtons();
+    });
+
+    btn('plan').addEventListener('click', () => {
+      renderPlan();
+      stage = 'planned';
+      say('Here is the proposed plan. Files it is sure about are placed, 1 waits for your review and 1 duplicate is flagged. Still nothing has moved. Try <b>Fewer</b> or <b>Detailed</b>, then <b>3. Approve</b>.');
+      setButtons();
+    });
+
+    // Changing the detail level redraws the plan, as long as nothing has been copied yet.
+    root.querySelectorAll('input[name="t-level"]').forEach((r) =>
+      r.addEventListener('change', () => {
+        if (stage === 'planned') renderPlan();
+      }),
+    );
+
+    btn('approve').addEventListener('click', async () => {
+      busy = true;
+      setButtons();
+      const rows = [...out.querySelectorAll<HTMLElement>('[data-f]')];
+      for (const li of rows) {
+        li.classList.add('copied');
+        li.querySelector('.tick')!.textContent = `copied, sha256 ${hash(Number(li.dataset.f))}… ✓`;
+        src[Number(li.dataset.f)].classList.add('kept');
+        await wait(160);
+      }
+      stage = 'copied';
+      busy = false;
+      say(`Copied ${rows.length} files into the new folders and checked every copy's SHA-256 hash. The originals are still in Downloads, and nothing was overwritten. Next: <b>4. Undo</b>.`);
+      setButtons();
+    });
+
+    btn('undo').addEventListener('click', async () => {
+      busy = true;
+      setButtons();
+      const rows = [...out.querySelectorAll<HTMLElement>('[data-f]')].reverse();
+      for (const li of rows) {
+        li.querySelector('.tick')!.textContent = 'hash matches, removed';
+        li.classList.add('gone');
+        await wait(110);
+      }
+      await wait(300);
+      const n = out.querySelectorAll('.folder:not(.flag)').length;
+      src.forEach((li) => li.classList.remove('kept'));
+      out.innerHTML = '<p class="empty">Back to how it was.</p>';
+      count.textContent = 'nothing yet';
+      stage = 'read';
+      busy = false;
+      say(`Undo checked each copy's hash before removing it, then cleaned up ${n} empty folders. Downloads is untouched. You can propose folders again.`);
+      setButtons();
+    });
+
+    setButtons();
+  }
+</script>
+
+<style>
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem 1.5rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--edge);
+  }
+  .steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .hint {
+    flex-basis: 100%;
+    margin-bottom: 0.15rem;
+    color: var(--muted);
+  }
+  /* The step to click next pulses until it is clicked. */
+  .steps .btn.solid:not(:disabled) {
+    animation: nudge 1.6s ease-out infinite;
+  }
+  @keyframes nudge {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 8px transparent;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .steps .btn.solid:not(:disabled) {
+      animation: none;
+    }
+  }
+  .steps .btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .steps .btn:disabled:hover {
+    background: transparent;
+    color: inherit;
+  }
+  .level {
+    display: flex;
+    border: 1px solid var(--edge);
+  }
+  .level label {
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .level input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .level label:has(:checked) {
+    background: var(--fg);
+    color: var(--bg);
+  }
+  .level label:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+  }
+  .panes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  section {
+    padding: 1rem 1.25rem 1.2rem;
+    min-width: 0;
+  }
+  section + section {
+    border-left: 1px solid var(--edge);
+  }
+  h4 {
+    margin: 0 0 0.6rem;
+    font-weight: 500;
+  }
+  h4 span {
+    margin-left: 0.4rem;
+    color: var(--faint);
+  }
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .src li {
+    padding: 0.35rem 0.4rem;
+    border-top: 1px solid var(--line);
+    transition: background 0.15s;
+  }
+  .src li.reading {
+    background: var(--accent-soft);
+  }
+  .fn {
+    font: 400 0.8rem/1.4 var(--mono);
+    word-break: break-all;
+  }
+  .rd {
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    font-size: 0.7rem;
+    color: var(--accent);
+    opacity: 0;
+    transition: max-height 0.25s, opacity 0.25s;
+  }
+  .rd i {
+    margin-right: 0.35rem;
+    padding: 0 0.25rem;
+    border: 1px solid currentColor;
+    font-style: normal;
+    font-size: 0.62rem;
+  }
+  .src li.read .rd {
+    max-height: 2.4em;
+    opacity: 1;
+  }
+  .src li.kept .fn::after {
+    content: '  original kept';
+    color: var(--faint);
+    font-size: 0.68rem;
+  }
+  .out :global(.empty) {
+    margin: 0;
+    padding: 1rem;
+    border: 1px dashed var(--edge);
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .out :global(.folder) {
+    margin-bottom: 0.7rem;
+  }
+  .out :global(.fold) {
+    margin: 0 0 0.2rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .out :global(.fold span) {
+    font: 400 0.7rem var(--mono);
+    color: var(--faint);
+  }
+  .out :global(ul) {
+    margin: 0;
+    list-style: none;
+  }
+  .out :global(.fn) {
+    font: 400 0.8rem/1.4 var(--mono);
+    word-break: break-all;
+  }
+  .out :global(.folder ul) {
+    padding-left: 1rem;
+    border-left: 1px solid var(--edge);
+  }
+  .out :global(.folder li) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0 0.8rem;
+    padding: 0.2rem 0;
+    transition: opacity 0.2s;
+  }
+  .out :global(.tick) {
+    font-size: 0.68rem;
+    color: var(--ok);
+  }
+  .out :global(.flag .fold) {
+    color: var(--pend);
+  }
+  .out :global(.flag .tick) {
+    color: var(--muted);
+  }
+  .out :global(li.gone) {
+    opacity: 0.3;
+    text-decoration: line-through;
+  }
+  .status {
+    margin: 0;
+    padding: 0.8rem 1.25rem;
+    border-bottom: 1px solid var(--edge);
+    background: var(--bg);
+    font-size: 0.92rem;
+    min-height: 3.4em;
+  }
+  .status :global(b) {
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .out :global(.empty b) {
+    color: var(--fg);
+  }
+  @media (max-width: 760px) {
+    .panes {
+      grid-template-columns: 1fr;
+    }
+    /* Keep the proposed folders close to the buttons on a phone. */
+    .src {
+      max-height: 15rem;
+      overflow-y: auto;
+    }
+    section + section {
+      border-left: 0;
+      border-top: 1px solid var(--edge);
+    }
+  }
+</style>

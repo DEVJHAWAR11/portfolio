@@ -1,0 +1,240 @@
+---
+import { Image } from 'astro:assets';
+import type { CollectionEntry } from 'astro:content';
+import type { ImageMetadata } from 'astro';
+import Icon from '@/components/Icon/Icon.astro';
+import Gloss from '@/components/Gloss/Gloss.astro';
+import { stackIcon } from '@/lib/stack-icon';
+
+interface Props {
+  p: CollectionEntry<'projects'>;
+  big?: boolean;
+  eager?: boolean;
+}
+const { p, big = false, eager = false } = Astro.props;
+const d = p.data;
+
+// Screenshots live in src/assets/projects/<slug>.<ext>; a project without one gets a plain title cover.
+const shots = import.meta.glob<{ default: ImageMetadata }>('/src/assets/projects/*.{png,jpg,jpeg,webp}', { eager: true });
+const shot = Object.entries(shots).find(([path]) => path.split('/').pop()!.replace(/\.\w+$/, '') === p.id)?.[1].default;
+
+const isApp = p.id === 'tidyflow';
+const status = d.links.live ? (isApp ? 'Desktop app' : 'Live') : 'Source only';
+const href = `/projects/${p.id}`;
+---
+
+<article class:list={['pcard', { big }]}>
+  <a class="media" href={href} aria-label={`${d.title} case study`}>
+    {
+      shot ? (
+        <Image
+          class="shot"
+          src={shot}
+          alt=""
+          widths={[480, 800, 1200]}
+          sizes={big ? '(min-width: 1100px) 720px, 100vw' : '(min-width: 1100px) 600px, 100vw'}
+          loading={eager ? 'eager' : 'lazy'}
+          fetchpriority={eager ? 'high' : 'auto'}
+        />
+      ) : (
+        <span class="cover display">{d.title}</span>
+      )
+    }
+  </a>
+
+  <div class="body">
+    <p class="mono meta">
+      <span class:list={['state', { live: d.links.live && !isApp }]} data-health={d.health ? p.id : undefined}><span class="dot"></span><span class="st">{status}</span></span>
+      {d.year && <span>{d.year}</span>}
+    </p>
+    <h3><a href={href}>{d.title}</a></h3>
+    <p class="tagline"><Gloss text={d.tagline} /></p>
+    {big && d.highlights[0] && <p class="hl"><Gloss text={d.highlights[0]} /></p>}
+    <ul class="tech">
+      {
+        d.stack.slice(0, big ? 8 : 5).map((s) => (
+          <li class="chip">
+            <Icon name={stackIcon(s)} size={12} />
+            {s}
+          </li>
+        ))
+      }
+    </ul>
+    <div class="actions">
+      {
+        d.links.live && (
+          <a class="btn solid sm" href={d.links.live} target="_blank" rel="noopener">
+            {isApp ? 'Download' : 'Live site'} ↗
+          </a>
+        )
+      }
+      {
+        d.links.github && (
+          <a class="btn sm" href={d.links.github} target="_blank" rel="noopener">
+            <Icon name="github" size={13} /> GitHub
+          </a>
+        )
+      }
+      <a class="btn sm quiet" href={href}>Read the case study</a>
+    </div>
+  </div>
+</article>
+
+<style>
+  .pcard {
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+  }
+  .big {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+  .media {
+    position: relative;
+    display: block;
+    margin: 1rem 1rem 0;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    border: 1px solid var(--fg);
+    background: var(--bg);
+  }
+  .big .media {
+    margin: 1rem 0 1rem 1rem;
+    aspect-ratio: auto;
+    min-height: 22rem;
+  }
+  .shot {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top left;
+    transition: scale 0.5s var(--ease);
+  }
+  .media:hover .shot {
+    scale: 1.025;
+  }
+  .cover {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    padding: 1rem;
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    background: radial-gradient(var(--edge) 1.2px, transparent 1.4px) 0 0 / 10px 10px;
+  }
+
+  .body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 1.1rem 1.25rem 1.3rem;
+  }
+  .big .body {
+    padding: 1.5rem 1.6rem;
+  }
+  .meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.7rem;
+    color: var(--faint);
+  }
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--muted);
+  }
+  .state.live .dot {
+    background: var(--ok);
+  }
+  .state[data-now='asleep'] .dot {
+    background: var(--pend);
+  }
+  .state[data-now='down'] .dot {
+    background: var(--fail);
+  }
+  h3 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1;
+    text-transform: uppercase;
+    font-stretch: 75%;
+    font-weight: 800;
+  }
+  .big h3 {
+    font-size: clamp(2.4rem, 4vw, 3.2rem);
+  }
+  h3 a:hover {
+    color: var(--accent);
+  }
+  .tagline {
+    margin: 0.6rem 0 0.9rem;
+    color: var(--muted);
+    font-size: 0.97rem;
+  }
+  .hl {
+    margin: 0 0 1rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--accent);
+    font-size: 0.9rem;
+  }
+  .tech {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0 0 1.25rem;
+    padding: 0;
+    list-style: none;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+  }
+  .quiet {
+    border-color: transparent;
+    padding-inline: 0.4rem;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--edge);
+  }
+  .quiet:hover {
+    background: none;
+    color: var(--accent);
+  }
+  @media (max-width: 900px) {
+    .big {
+      display: flex;
+    }
+    .big .media {
+      margin: 1rem 1rem 0;
+      aspect-ratio: 16 / 10;
+      min-height: 0;
+    }
+    .big .body {
+      padding: 1.1rem 1.25rem 1.3rem;
+    }
+  }
+</style>
+
+<script>
+  // "Live" on a card follows the latest health check: asleep or offline replaces it when that is the truth.
+  import { loadStatus } from '@/lib/status-client';
+
+  const cards = [...document.querySelectorAll<HTMLElement>('[data-health]')];
+  if (cards.length) {
+    loadStatus().then((data) => {
+      for (const c of cards) {
+        const r = data?.services.find((s) => s.id === c.dataset.health);
+        if (!r || r.state === 'up') continue;
+        c.dataset.now = r.state === 'asleep' ? 'asleep' : 'down';
+        c.querySelector('.st')!.textContent = r.state === 'asleep' ? 'Live, asleep' : 'Offline';
+      }
+    });
+  }
+</script>

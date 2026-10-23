@@ -1,0 +1,93 @@
+---
+// My photo as halftone dots (built by /halftone.svg). The dots are a CSS mask, so they take the theme's colours.
+// An accent copy shows through a circle that follows the cursor.
+---
+
+<div class="portrait" data-portrait role="img" aria-label="Portrait of Dev Jhawar, drawn in dots">
+  <div class="layer ink"></div>
+  <div class="layer hot"></div>
+  <span class="plus a" aria-hidden="true"></span>
+  <span class="plus b" aria-hidden="true"></span>
+  <span class="mono note n1" aria-hidden="true">Agents<br />Retrieval<br />Backend</span>
+  <span class="mono note n2" aria-hidden="true">Plan<br />Search<br />Cite<br />Ship</span>
+</div>
+
+<script>
+  const el = document.querySelector<HTMLElement>('[data-portrait]');
+  if (el && matchMedia('(hover: hover)').matches) {
+    let raf = 0;
+    el.addEventListener('pointermove', (e) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const r = el.getBoundingClientRect();
+        el.style.setProperty('--x', `${((e.clientX - r.left) / r.width) * 100}%`);
+        el.style.setProperty('--y', `${((e.clientY - r.top) / r.height) * 100}%`);
+      });
+    });
+    el.addEventListener('pointerleave', () => {
+      el.style.removeProperty('--x');
+      el.style.removeProperty('--y');
+    });
+  }
+</script>
+
+<style>
+  .portrait {
+    position: relative;
+    aspect-ratio: 1;
+  }
+  .layer {
+    position: absolute;
+    inset: 0;
+    -webkit-mask: url('/halftone.svg') center / contain no-repeat;
+    mask: url('/halftone.svg') center / contain no-repeat;
+  }
+  .ink {
+    background: var(--fg);
+  }
+  .hot {
+    background: var(--accent);
+    -webkit-mask-image: url('/halftone.svg'), radial-gradient(circle at var(--x, 70%) var(--y, 84%), #000 15%, transparent 15.3%);
+    mask-image: url('/halftone.svg'), radial-gradient(circle at var(--x, 70%) var(--y, 84%), #000 15%, transparent 15.3%);
+    -webkit-mask-size: contain, 100% 100%;
+    mask-size: contain, 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-composite: source-in;
+    mask-composite: intersect;
+  }
+  .plus.a {
+    top: -7px;
+    right: 18%;
+  }
+  .plus.b {
+    bottom: 6%;
+    left: -7px;
+  }
+  .note {
+    position: absolute;
+    padding: 0.35rem 0.6rem;
+    background: var(--bg);
+    font-size: 0.7rem;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .n1 {
+    top: 8%;
+    left: -1.5rem;
+    border-top: 2px solid var(--fg);
+  }
+  .n2 {
+    right: -0.5rem;
+    top: 34%;
+    border-left: 2px solid var(--accent);
+  }
+  @media (max-width: 640px) {
+    .n1 {
+      left: 0;
+    }
+    .n2 {
+      right: 0;
+    }
+  }
+</style>

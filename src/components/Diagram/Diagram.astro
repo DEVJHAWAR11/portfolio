@@ -1,0 +1,117 @@
+---
+// Architecture diagram drawn from a project's frontmatter (nodes on a col/row grid, edges between them).
+// Pure SVG, themed with CSS variables; the dashed edges "flow" with a CSS animation.
+interface Node {
+  id: string;
+  label: string;
+  role?: string;
+  col: number;
+  row: number;
+}
+interface Props {
+  nodes: Node[];
+  edges: string[][];
+  class?: string;
+  roles?: boolean;
+}
+
+const { nodes, edges, class: cls, roles = true } = Astro.props;
+const W = 168;
+const H = 78;
+const NW = 134;
+const NH = roles ? 46 : 36;
+const pad = 14;
+const cols = Math.max(...nodes.map((n) => n.col)) + 1;
+const rows = Math.max(...nodes.map((n) => n.row)) + 1;
+const vw = cols * W - (W - NW) + pad * 2;
+const vh = rows * H - (H - NH) + pad * 2;
+const pos = Object.fromEntries(nodes.map((n) => [n.id, { x: pad + n.col * W, y: pad + n.row * H }]));
+
+const paths = edges
+  .filter(([a, b]) => pos[a] && pos[b])
+  .map(([a, b, label], i) => {
+    const A = pos[a];
+    const B = pos[b];
+    let d: string;
+    if (A.x === B.x) {
+      const x = A.x + NW / 2;
+      const [y1, y2] = B.y > A.y ? [A.y + NH, B.y] : [A.y, B.y + NH];
+      d = `M${x},${y1} L${x},${y2}`;
+    } else {
+      const fwd = B.x > A.x;
+      const x1 = fwd ? A.x + NW : A.x;
+      const x2 = fwd ? B.x : B.x + NW;
+      const y1 = A.y + NH / 2;
+      const y2 = B.y + NH / 2;
+      const mx = (x1 + x2) / 2;
+      d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+    }
+    return { d, label, i };
+  });
+---
+
+<svg class:list={['diagram', cls]} viewBox={`0 0 ${vw} ${vh}`} role="img" aria-label={`Architecture: ${nodes.map((n) => n.label).join(', ')}`}>
+  <defs>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" class="tip"></path>
+    </marker>
+  </defs>
+  {paths.map((p) => <path d={p.d} class="edge" style={`animation-delay:${-p.i * 0.4}s`} marker-end="url(#arrow)" />)}
+  {
+    nodes.map((n) => (
+      <g transform={`translate(${pos[n.id].x},${pos[n.id].y})`} class="node">
+        <title>{n.role ? `${n.label}: ${n.role}` : n.label}</title>
+        <rect width={NW} height={NH} rx="9" />
+        <text x={NW / 2} y={roles && n.role ? 19 : NH / 2 + 4} class="label" text-anchor="middle">
+          {n.label}
+        </text>
+        {roles && n.role && (
+          <text x={NW / 2} y="34" class="role" text-anchor="middle">
+            {n.role.length > 24 ? n.role.slice(0, 23) + '…' : n.role}
+          </text>
+        )}
+      </g>
+    ))
+  }
+</svg>
+
+<style>
+  .diagram {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .edge {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.4;
+    stroke-dasharray: 4 5;
+    opacity: 0.75;
+    animation: flow 1.2s linear infinite;
+  }
+  .tip {
+    fill: var(--accent);
+  }
+  @keyframes flow {
+    to {
+      stroke-dashoffset: -18;
+    }
+  }
+  rect {
+    fill: var(--bg);
+    stroke: var(--edge);
+    stroke-width: 1;
+    transition: stroke 0.2s;
+  }
+  .node:hover rect {
+    stroke: var(--accent);
+  }
+  .label {
+    fill: var(--fg);
+    font: 600 12.5px var(--display);
+  }
+  .role {
+    fill: var(--muted);
+    font: 9.5px var(--mono);
+  }
+</style>

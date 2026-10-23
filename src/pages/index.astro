@@ -1,0 +1,95 @@
+---
+import Base from '@/layouts/Base.astro';
+import Section from '@/components/Section/Section.astro';
+import Hero from '@/components/Hero/Hero.astro';
+import Projects from '@/components/Projects/Projects.astro';
+import OpenSource from '@/components/OpenSource/OpenSource.astro';
+import Writing from '@/components/Writing/Writing.astro';
+import Timeline from '@/components/Timeline/Timeline.astro';
+import Stack from '@/components/Stack/Stack.astro';
+import Now from '@/components/Now/Now.astro';
+import Contact from '@/components/Contact/Contact.astro';
+import Gloss from '@/components/Gloss/Gloss.astro';
+import profile from '@/data/profile.json';
+import { sections } from '@/lib/sections';
+
+const s = Object.fromEntries(sections.map((x) => [x.id, x]));
+---
+
+<Base>
+  <Hero />
+
+  <Section {...s.about}>
+    <div class="about">
+      <div class="bio">
+        {profile.bio.map((p) => (
+          <p>
+            <Gloss text={p} />
+          </p>
+        ))}
+      </div>
+      <Now />
+    </div>
+  </Section>
+
+  <Section {...s.projects}>
+    <Projects />
+  </Section>
+
+  <Section {...s['open-source']}>
+    <OpenSource />
+  </Section>
+
+  <Section {...s.writing}>
+    <Writing />
+  </Section>
+
+  <Section {...s.experience}>
+    <div class="exp">
+      <Timeline collection="experience" label="Work" />
+      <Timeline collection="education" label="Education" />
+    </div>
+  </Section>
+
+  <Section {...s.stack}>
+    <Stack />
+  </Section>
+
+  <Section {...s.contact}>
+    <Contact />
+  </Section>
+</Base>
+
+<style>
+  .about {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 2.5rem;
+    align-items: start;
+  }
+  .bio {
+    max-width: 40rem;
+    font-size: 1.08rem;
+  }
+  .bio p {
+    margin: 0 0 1rem;
+    color: var(--muted);
+  }
+  .bio p:first-child {
+    font-size: 1.35rem;
+    line-height: 1.45;
+    color: var(--fg);
+  }
+  .exp {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .about,
+    .exp {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

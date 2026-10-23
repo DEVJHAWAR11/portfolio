@@ -1,0 +1,59 @@
+---
+import { getCollection } from 'astro:content';
+const jobs = await getCollection('now');
+---
+
+<div class="crontab" data-reveal>
+  <p class="mono bar"><span>$ crontab -l</span><span class="muted"># what I'm doing these days</span></p>
+  <ul>
+    {
+      jobs.map((j) => (
+        <li class="mono">
+          <span class="cron">{j.data.cron}</span>
+          <span class="task">{j.data.task}</span>
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<style>
+  .crontab {
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--edge);
+    background: var(--bg);
+  }
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0.6rem 1rem 0.8rem;
+  }
+  li {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 1rem;
+    padding: 0.3rem 0;
+  }
+  .cron {
+    color: var(--accent);
+    white-space: pre;
+  }
+  @media (max-width: 560px) {
+    li {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .bar .muted {
+      display: none;
+    }
+  }
+</style>

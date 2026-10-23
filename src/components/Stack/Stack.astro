@@ -1,0 +1,111 @@
+---
+// Skills grouped by area. Each tile counts the projects on this site that actually use it.
+import { getCollection } from 'astro:content';
+import Icon from '@/components/Icon/Icon.astro';
+
+const skills = await getCollection('skills');
+const projects = await getCollection('projects');
+// Groups render in this order; any new group in skills.yaml is appended after these.
+const blurbs: Record<string, string> = {
+  'Agentic AI': 'State machines, tools and retries',
+  'RAG & Retrieval': 'Search that cites its sources',
+  'Machine Learning': 'Models, from scratch and fine-tuned',
+  Backend: 'APIs, queues and databases',
+  'Infra & Ops': 'Ship it, trace it, keep it up',
+};
+const groups = [...new Set([...Object.keys(blurbs), ...skills.map((s) => s.data.group)])].filter((g) =>
+  skills.some((s) => s.data.group === g),
+);
+const usedIn = (match: string[]) => {
+  const m = match.map((x) => x.toLowerCase());
+  return projects.filter((p) => p.data.stack.some((s) => m.includes(s.toLowerCase()))).map((p) => p.data.title);
+};
+---
+
+<div class="groups blocks">
+  {
+    groups.map((g, gi) => (
+      <section class:list={['group', { wide: gi === 0 }]}>
+        <header>
+          <h3>{g}</h3>
+          <p class="muted">{blurbs[g] ?? ''}</p>
+        </header>
+        <ul>
+          {skills
+            .filter((s) => s.data.group === g)
+            .map((s) => {
+              const used = usedIn(s.data.match);
+              return (
+                <li title={used.length ? `Used in ${used.join(', ')}` : undefined}>
+                  <Icon name={s.data.icon} size={16} brand class="ic" />
+                  <span>{s.data.name}</span>
+                </li>
+              );
+            })}
+        </ul>
+      </section>
+    ))
+  }
+</div>
+
+<style>
+  .groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .group {
+    padding: 1.25rem 1.3rem 1.4rem;
+    background: var(--panel);
+  }
+  .wide {
+    grid-column: 1 / -1;
+  }
+  header {
+    margin-bottom: 1rem;
+  }
+  h3 {
+    margin: 0;
+    font-size: 1.6rem;
+    line-height: 1;
+    text-transform: uppercase;
+    font-stretch: 75%;
+    font-weight: 800;
+  }
+  header p {
+    margin: 0.35rem 0 0;
+    font-size: 0.92rem;
+  }
+  ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--edge);
+    background: var(--bg);
+    font-size: 0.9rem;
+    cursor: default;
+    transition: border-color 0.15s;
+  }
+  li:hover {
+    border-color: var(--fg);
+  }
+  li :global(.ic) {
+    color: var(--muted);
+    transition: color 0.15s;
+  }
+  li:hover :global(.ic) {
+    color: var(--brand, var(--accent));
+  }
+  @media (max-width: 760px) {
+    .groups {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

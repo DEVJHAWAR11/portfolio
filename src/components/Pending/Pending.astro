@@ -1,0 +1,26 @@
+---
+// Placeholder for a span that gets wired in a later build stage.
+interface Props {
+  what: string;
+  stage: number;
+}
+const { what, stage } = Astro.props;
+---
+
+<div class="pending mono" data-reveal>
+  <span class="dot pend"></span>
+  <span>{what}</span>
+  <span class="muted">· status: pending · wired in stage {stage}</span>
+</div>
+
+<style>
+  .pending {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1.4rem 1rem;
+    border: 1px dashed var(--edge);
+    color: var(--muted);
+  }
+</style>

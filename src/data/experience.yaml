@@ -1,0 +1,11 @@
+- id: oss
+  title: Open source contributor
+  org: Kubeflow · Prefect · Docling · OpenLLMetry · icalendar
+  start: Oct 2026
+  current: true
+  detail: Fixing things I run into in AI and data tooling, from data-cache connections in Kubeflow Trainer to 64-bit parameter overflows in Prefect's API.
+- id: hacktoberfest
+  title: Open source developer
+  org: Hacktoberfest
+  start: Oct 2025
+  detail: Contributed to web and tooling projects alongside maintainers in the Hacktoberfest community.

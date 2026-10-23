@@ -1,0 +1,4 @@
+- { id: oss, cron: "0 22 * * *", task: "review my open PRs on kubeflow/trainer and prefect" }
+- { id: watchtower, cron: "*/30 * * * *", task: "ship WatchTower: agent checks, digests, community watches" }
+- { id: school, cron: "0 9 * * 1-5", task: "final year at KIIT, class of 2027" }
+- { id: writing, cron: "0 18 * * 0", task: "write about LLM internals on dev.to" }

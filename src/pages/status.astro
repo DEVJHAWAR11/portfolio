@@ -1,0 +1,153 @@
+---
+// Live health of every demo, checked by /api/status. Nothing here is decorative: each row is a real request.
+import Base from '@/layouts/Base.astro';
+import StatusBadge from '@/components/Status/StatusBadge.astro';
+import { getTargets } from '@/lib/targets';
+import { sleepy } from '@/lib/health';
+
+const targets = await getTargets();
+const host = (u: string) => new URL(u).host;
+---
+
+<Base title="Status, by Dev Jhawar" description="Whether each live demo is up right now, checked from the server." image="/og/status.png">
+  <article>
+    <a href="/#projects" class="mono back">← All projects</a>
+    <header class="head">
+      <h1>Status</h1>
+      <p class="mono summary" data-summary aria-live="polite">Checking {targets.length} services…</p>
+    </header>
+
+    <ul class="rows blk">
+      {
+        targets.map((t) => (
+          <li>
+            <div class="name">
+              <a href={`/projects/${t.id}`}>{t.title}</a>
+              <span class="mono host">
+                {host(t.url)}
+                {sleepy(t.url) && <span class="tag-free">free tier, sleeps when idle</span>}
+              </span>
+            </div>
+            <StatusBadge id={t.id} url={t.url} />
+            {t.live && (
+              <a class="btn sm" href={t.live} target="_blank" rel="noopener">
+                Open ↗
+              </a>
+            )}
+          </li>
+        ))
+      }
+    </ul>
+
+    <section class="notes">
+      <h2>How this is checked</h2>
+      <p>
+        A small serverless function sends one request to each service and times the answer. Results are cached for five minutes, so a busy page
+        doesn't hit the servers on every visit.
+      </p>
+      <p>
+        Services on Render's free tier go to sleep after 15 minutes without traffic and take about half a minute to start again. If one is
+        asleep, <b>Wake it</b> sends a request from your browser and shows how long the cold start takes.
+      </p>
+    </section>
+  </article>
+</Base>
+
+<script>
+  import { loadStatus, ago } from '@/lib/status-client';
+
+  const out = document.querySelector('[data-summary]');
+  loadStatus().then((data) => {
+    if (!out) return;
+    if (!data) {
+      out.textContent = "Status couldn't be loaded right now.";
+      return;
+    }
+    const up = data.services.filter((s) => s.state === 'up').length;
+    const asleep = data.services.filter((s) => s.state === 'asleep').length;
+    const parts = [`${up} of ${data.services.length} up`];
+    if (asleep) parts.push(`${asleep} asleep`);
+    const when = data.fallback ? `checked at the last build, ${ago(data.at)}` : `checked ${ago(data.at)}`;
+    out.textContent = `${parts.join(', ')}. ${when[0].toUpperCase()}${when.slice(1)}.`;
+  });
+</script>
+
+<style>
+  article {
+    padding: 3rem 0 2rem;
+  }
+  .back {
+    color: var(--muted);
+  }
+  .back:hover {
+    color: var(--accent);
+  }
+  .head {
+    margin: 2.5rem 0 2rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(3.4rem, 11vw, 8rem);
+    line-height: 0.85;
+  }
+  .summary {
+    margin: 1.2rem 0 0;
+    color: var(--muted);
+  }
+  .rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rows li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    gap: 0.6rem 1.5rem;
+    align-items: center;
+    padding: 1rem 1.25rem;
+  }
+  .rows li + li {
+    border-top: 1px solid var(--edge);
+  }
+  .name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+  .name > a {
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+  .name > a:hover {
+    color: var(--accent);
+  }
+  .host {
+    color: var(--faint);
+    font-size: 0.72rem;
+    overflow-wrap: anywhere;
+  }
+  .tag-free {
+    display: block;
+    color: var(--muted);
+  }
+  .notes {
+    max-width: 42rem;
+    margin-top: 3rem;
+    color: color-mix(in srgb, var(--fg) 82%, var(--bg));
+    line-height: 1.65;
+  }
+  .notes h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1.8rem;
+  }
+  @media (max-width: 700px) {
+    .rows li {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .rows li > :global(.sbadge) {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+  }
+</style>

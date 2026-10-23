@@ -1,0 +1,96 @@
+---
+// Live health of one demo. Filled in by the script below; stays hidden if no status can be loaded.
+interface Props {
+  id: string;
+  url: string; // the URL that gets checked, and pinged by Wake it
+}
+const { id, url } = Astro.props;
+---
+
+<span class="sbadge mono" data-status={id} data-url={url} data-state="checking" hidden>
+  <span class="dot"></span>
+  <span class="txt">Checking…</span>
+  <button type="button" class="wake" hidden>Wake it</button>
+</span>
+
+<script>
+  import { loadStatus, describe, wake } from '@/lib/status-client';
+
+  const badges = [...document.querySelectorAll<HTMLElement>('.sbadge[data-status]')];
+  if (badges.length) {
+    loadStatus().then((data) => {
+      for (const b of badges) {
+        const r = data?.services.find((s) => s.id === b.dataset.status);
+        if (!r) continue;
+        const txt = b.querySelector('.txt')!;
+        const btn = b.querySelector<HTMLButtonElement>('.wake')!;
+        b.hidden = false;
+        b.dataset.state = r.state;
+        txt.textContent = describe(r);
+        btn.hidden = r.state !== 'asleep';
+        btn.addEventListener('click', async () => {
+          btn.hidden = true;
+          b.dataset.state = 'waking';
+          const s = await wake(b.dataset.url!, (t) => (txt.textContent = `Waking it up… ${t.toFixed(1)} s`));
+          b.dataset.state = s === null ? 'asleep' : 'up';
+          txt.textContent = s === null ? 'Still asleep after 90 s' : `Awake, woke up in ${s.toFixed(1)} s`;
+          btn.hidden = s !== null;
+        });
+      }
+    });
+  }
+</script>
+
+<style>
+  .sbadge {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .sbadge[hidden] {
+    display: none;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--faint);
+  }
+  [data-state='up'] .dot {
+    background: var(--ok);
+  }
+  [data-state='asleep'] .dot,
+  [data-state='waking'] .dot {
+    background: var(--pend);
+  }
+  [data-state='waking'] .dot {
+    animation: blink 0.8s steps(2) infinite;
+  }
+  [data-state='down'] .dot,
+  [data-state='suspended'] .dot {
+    background: var(--fail);
+  }
+  .wake {
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--pend);
+    color: var(--pend);
+    font: inherit;
+  }
+  .wake:hover {
+    background: var(--pend);
+    color: var(--bg);
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0.25;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-state='waking'] .dot {
+      animation: none;
+    }
+  }
+</style>

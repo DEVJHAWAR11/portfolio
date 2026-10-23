@@ -1,0 +1,395 @@
+---
+import { Image } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import { getCollection, render } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import Icon from '@/components/Icon/Icon.astro';
+import Gloss from '@/components/Gloss/Gloss.astro';
+import WatchDemo from '@/components/Demos/WatchDemo.astro';
+import RrfDemo from '@/components/Demos/RrfDemo.astro';
+import GridDemo from '@/components/Demos/GridDemo.astro';
+import PolicyDemo from '@/components/Demos/PolicyDemo.astro';
+import TidyDemo from '@/components/Demos/TidyDemo.astro';
+import StatusBadge from '@/components/Status/StatusBadge.astro';
+import { stackIcon } from '@/lib/stack-icon';
+
+export async function getStaticPaths() {
+  const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
+  return projects.map((p, i) => ({ params: { slug: p.id }, props: { p, next: projects[(i + 1) % projects.length] } }));
+}
+
+const { p, next } = Astro.props;
+const { Content } = await render(p);
+const d = p.data;
+
+const shots = import.meta.glob<{ default: ImageMetadata }>('/src/assets/projects/*.{png,jpg,jpeg,webp}', { eager: true });
+const shot = Object.entries(shots).find(([path]) => path.split('/').pop()!.replace(/\.\w+$/, '') === p.id)?.[1].default;
+const isApp = p.id === 'tidyflow';
+// A project can name a small interactive explainer of one idea inside it. It is a model of that idea, not the app.
+const demos = {
+  watch: {
+    C: WatchDemo,
+    title: 'How a watch works',
+    blurb: 'Type what you want watched to see the rule it becomes, then run checks to see how each one stops at the cheapest step that can rule it out.',
+    part: 'how a sentence becomes a watch rule, and the cost ladder each check goes down',
+  },
+  rrf: {
+    C: RrfDemo,
+    title: 'How the search merges results',
+    blurb: 'CaseCompass runs a meaning search and a keyword search, then merges them with Reciprocal Rank Fusion. Drag k and watch the order change.',
+    part: 'the step that merges its two search results',
+  },
+  grid: {
+    C: GridDemo,
+    title: 'How a cell gets researched',
+    blurb: 'Each cell gets its own agent: plan queries, search, read pages only if the snippets are thin, answer, and retry at most twice. Run the grid or click a cell to follow its trace.',
+    part: 'the agent loop each cell runs, and the queue that hands cells to workers',
+  },
+  policy: {
+    C: PolicyDemo,
+    title: 'How an answer finds its clause',
+    blurb: 'Ask a question of a short, made-up policy for this site. The best clause is quoted with its section and page, and a question the policy does not cover gets "not in this document".',
+    part: 'how an answer is tied to the exact clause and page, using keyword search only where the real app also uses vectors, a reranker and an LLM',
+  },
+  tidy: {
+    C: TidyDemo,
+    title: 'How a folder gets tidied',
+    blurb: 'Read a messy Downloads folder, get a proposed set of folders, approve it, then undo it. Nothing moves until you approve, and every copy is hash-checked.',
+    part: 'the read, plan, approve and undo flow, on a made-up folder',
+  },
+};
+const demo = d.interaction ? demos[d.interaction as keyof typeof demos] : undefined;
+const links = [
+  d.links.live && { href: d.links.live, label: isApp ? 'Download' : 'Live site', solid: true },
+  d.links.github && { href: d.links.github, label: 'GitHub', icon: 'github' },
+  d.links.video && { href: d.links.video, label: 'Demo video', icon: 'play' },
+  d.links.docs && { href: d.links.docs, label: 'Docs', icon: 'doc' },
+].filter(Boolean) as { href: string; label: string; icon?: string; solid?: boolean }[];
+---
+
+<Base title={`${d.title}, by Dev Jhawar`} description={d.tagline} image={`/og/${p.id}.png`}>
+  <article>
+    <a href="/#projects" class="mono back">← All projects</a>
+
+    <header class="head">
+      <p class="tag">Project {String(d.order).padStart(2, '0')}{d.year && `, ${d.year}`}</p>
+      <h1>{d.title}</h1>
+      <p class="tagline">{d.tagline}</p>
+      <div class="links">
+        {
+          links.map((l) => (
+            <a class:list={['btn', { solid: l.solid }]} href={l.href} target="_blank" rel="noopener">
+              {l.icon && <Icon name={l.icon} size={14} />}
+              {l.label} ↗
+            </a>
+          ))
+        }
+        {demo && <a class="btn" href="#demo">How it works ↓</a>}
+      </div>
+      {
+        d.health && (
+          <p class="health">
+            <StatusBadge id={p.id} url={d.health} />
+            <a class="mono" href="/status">All services</a>
+          </p>
+        )
+      }
+    </header>
+
+    {
+      shot && (
+        <figure class="shot blk">
+          <Image src={shot} alt={`${d.title} screenshot`} widths={[800, 1200, 1800]} sizes="(min-width: 1250px) 1216px, 100vw" loading="eager" />
+        </figure>
+      )
+    }
+
+    {
+      demo && (
+        <section class="demo-wrap" id="demo">
+          <div class="demo-head">
+            <div>
+              <p class="tag">Interactive explainer</p>
+              <h2>{demo.title}</h2>
+            </div>
+            <p class="muted">{demo.blurb}</p>
+          </div>
+          <div class="blk">
+            <p class="sim">
+              <span>
+                This is a small model of one part of {d.title}: {demo.part}. It runs in your browser on sample data and
+                doesn't fetch anything or call an AI model, so it isn't the app itself.
+              </span>
+              {
+                d.links.live && (
+                  <a class="btn sm solid" href={d.links.live} target="_blank" rel="noopener">
+                    {isApp ? 'Download' : 'Use'} the real {d.title} ↗
+                  </a>
+                )
+              }
+            </p>
+            <demo.C />
+          </div>
+        </section>
+      )
+    }
+
+    <div class="layout">
+      <div class="prose">
+        {
+          d.problem && (
+            <p class="problem"><Gloss text={d.problem} /></p>
+          )
+        }
+        <Content />
+      </div>
+
+      <aside class="side blk">
+        <section>
+          <h2 class="mono">Stack</h2>
+          <ul class="chips">
+            {
+              d.stack.map((s) => (
+                <li class="chip">
+                  <Icon name={stackIcon(s)} size={12} />
+                  {s}
+                </li>
+              ))
+            }
+          </ul>
+        </section>
+        {
+          d.highlights.length > 0 && (
+            <section>
+              <h2 class="mono">Highlights</h2>
+              <ul class="hl">
+                {d.highlights.map((h) => (
+                  <li>
+                    <Gloss text={h} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        }
+      </aside>
+    </div>
+
+    <a class="next blk" href={`/projects/${next.id}`}>
+      <span class="mono muted">Next project</span>
+      <span class="display">{next.data.title}</span>
+      <span class="muted">{next.data.tagline}</span>
+    </a>
+  </article>
+</Base>
+
+<style>
+  article {
+    padding: 3rem 0 2rem;
+  }
+  .back {
+    color: var(--muted);
+  }
+  .back:hover {
+    color: var(--accent);
+  }
+  .head {
+    margin: 2.5rem 0 2.5rem;
+  }
+  .tag {
+    margin: 0 0 1.2rem;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(3.4rem, 11vw, 8rem);
+    line-height: 0.85;
+  }
+  .tagline {
+    max-width: 40rem;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 1.25rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .health {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.2rem;
+    margin: 1.1rem 0 0;
+  }
+  .health > a {
+    font-size: 0.75rem;
+    color: var(--faint);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .health > a:hover {
+    color: var(--accent);
+  }
+  .shot {
+    margin: 0 0 3.5rem;
+    padding: 1rem;
+  }
+  .shot :global(img) {
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--fg);
+  }
+  .demo-wrap {
+    margin: 0 0 4.5rem;
+  }
+  .demo-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 36rem);
+    justify-content: space-between;
+    align-items: end;
+    gap: 1rem 3rem;
+    margin-bottom: 1.4rem;
+  }
+  .demo-head h2 {
+    margin: 0;
+    font-size: clamp(2.2rem, 5vw, 3.4rem);
+  }
+  .demo-head p {
+    margin: 0;
+  }
+  .demo-head .tag {
+    margin: 0 0 0.8rem;
+  }
+  .sim {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem 1.5rem;
+    margin: 0;
+    padding: 0.8rem 1.25rem;
+    border-bottom: 1px solid var(--edge);
+    background: var(--accent-soft);
+    font-size: 0.9rem;
+  }
+  .sim .btn {
+    flex: none;
+  }
+  @media (max-width: 640px) {
+    .sim {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 21rem;
+    gap: 3.5rem;
+    align-items: start;
+  }
+  .prose {
+    max-width: 42rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  .problem {
+    margin: 0 0 2rem;
+    padding: 1rem 1.2rem;
+    border-left: 3px solid var(--accent);
+    background: var(--panel);
+    font-size: 1.12rem;
+    line-height: 1.55;
+  }
+  .prose :global(h2) {
+    margin: 2.8rem 0 0.8rem;
+    font-size: 2.2rem;
+  }
+  .prose :global(h3) {
+    margin: 2rem 0 0.5rem;
+    font-size: 1.3rem;
+  }
+  .prose :global(p),
+  .prose :global(li) {
+    color: color-mix(in srgb, var(--fg) 82%, var(--bg));
+  }
+  .prose :global(li + li) {
+    margin-top: 0.35rem;
+  }
+  .prose :global(code) {
+    font: 0.86em var(--mono);
+    padding: 0.1em 0.35em;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+  }
+  .prose :global(a) {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .side {
+    position: sticky;
+    top: 5rem;
+  }
+  .side section {
+    padding: 1.1rem 1.2rem 1.3rem;
+  }
+  .side section + section {
+    border-top: 1px solid var(--edge);
+  }
+  .side h2 {
+    margin: 0 0 0.8rem;
+    font: 500 0.78rem/1 var(--mono);
+    text-transform: none;
+    color: var(--muted);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .hl {
+    margin: 0;
+    padding-left: 1rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .hl li + li {
+    margin-top: 0.6rem;
+  }
+  .hl li::marker {
+    color: var(--accent);
+  }
+  .next {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 5rem;
+    padding: 1.5rem 1.6rem;
+    transition: border-color 0.15s;
+  }
+  .next .display {
+    font-size: clamp(2.4rem, 7vw, 4.2rem);
+  }
+  .next:hover {
+    border-color: var(--fg);
+  }
+  .next:hover .display {
+    color: var(--accent);
+  }
+  @media (max-width: 900px) {
+    .demo-head {
+      grid-template-columns: 1fr;
+    }
+    .layout {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+    }
+    .side {
+      position: static;
+    }
+  }
+</style>

@@ -1,0 +1,42 @@
+---
+// Brand and UI icons as inline SVG, resolved at build time. Nothing ships to the browser but the <svg>.
+import * as si from 'simple-icons';
+
+interface Props {
+  name: string;
+  size?: number;
+  brand?: boolean; // expose the brand colour as --brand for hover effects
+  class?: string;
+}
+
+// Icons simple-icons doesn't carry (or that are generic UI glyphs).
+const custom: Record<string, { path: string; hex?: string }> = {
+  linkedin: {
+    hex: '0A66C2',
+    path: 'M20.45 20.45h-3.55v-5.57c0-1.33-.03-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z',
+  },
+  aws: { hex: 'FF9900', path: 'M6.5 19a4.5 4.5 0 0 1-.42-8.98A6 6 0 0 1 17.6 8.5 4.5 4.5 0 0 1 17.5 19h-11z' },
+  groq: { hex: 'F55036', path: 'M13 2 4 14h7l-1 8 9-12h-7l1-8z' },
+  rag: { path: 'M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm-3 4h6v1.6H7zm0 3h4v1.6H7z' },
+  embed: { path: 'M3 3h4v4H3zm7 0h4v4h-4zm7 0h4v4h-4zM3 10h4v4H3zm7 0h4v4h-4zm7 0h4v4h-4zM3 17h4v4H3zm7 0h4v4h-4zm7 0h4v4h-4z' },
+  mail: { path: 'M2 4h20v16H2V4zm2 2v.6l8 5.2 8-5.2V6H4zm16 2.9-8 5.2-8-5.2V18h16V8.9z' },
+  doc: { path: 'M5 2h10l5 5v15H5V2zm9 1.5V8h4.5L14 3.5zM8 12h9v1.6H8zm0 3.5h9v1.6H8zm0-7h4v1.6H8z' },
+  external: { path: 'M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z' },
+  play: { path: 'M7 4v16l13-8L7 4z' },
+};
+
+const { name, size = 16, brand = false, class: cls } = Astro.props;
+const found = (Object.values(si) as any[]).find((i) => i?.slug === name);
+const icon = custom[name] ?? (found ? { path: found.path, hex: found.hex } : undefined);
+// Near-black brand colours (GitHub, X) would vanish on the dark theme, so they fall back to the text colour.
+const dark = icon?.hex && parseInt(icon.hex.slice(0, 2), 16) + parseInt(icon.hex.slice(2, 4), 16) + parseInt(icon.hex.slice(4, 6), 16) < 120;
+const style = brand && icon?.hex && !dark ? `--brand:#${icon.hex}` : undefined;
+---
+
+{
+  icon ? (
+    <svg class={cls} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={style}>
+      <path d={icon.path} />
+    </svg>
+  ) : null
+}

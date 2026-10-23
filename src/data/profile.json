@@ -1,0 +1,30 @@
+{
+  "name": "Dev Jhawar",
+  "first": "Dev",
+  "last": "Jhawar",
+  "role": "I build agentic AI systems and the backend infrastructure they run on.",
+  "tags": ["agents", "rag", "backend", "ai infra", "open source"],
+  "location": "Bhubaneswar, India",
+  "timezone": "Asia/Kolkata",
+  "school": "B.Tech CSE · KIIT · Class of 2027",
+  "email": "dev.jhawar.cs@gmail.com",
+  "github": "DEVJHAWAR11",
+  "githubSince": 2024,
+  "devto": "dev_jhawar",
+  "resume": "https://resume-drab-six.vercel.app",
+  "cgpa": "9.65",
+  "bio": [
+    "I'm a final-year CS student at KIIT who likes the part of software nobody screenshots: queues, retries, retrieval pipelines and the agents that sit on top of them.",
+    "Most of what I build is an LLM system that has to behave in production: research agents that cite what they read, RAG that points at the exact clause it used, and schedulers that survive a Redis flush.",
+    "Lately I've been sending fixes upstream to the tools I use, like Kubeflow, Prefect, Docling and OpenLLMetry."
+  ],
+  "links": [
+    { "label": "GitHub", "href": "https://github.com/DEVJHAWAR11", "handle": "DEVJHAWAR11" },
+    { "label": "LinkedIn", "href": "https://www.linkedin.com/in/dev-jhawar11/", "handle": "dev-jhawar11" },
+    { "label": "X", "href": "https://x.com/devjhawar", "handle": "@devjhawar" },
+    { "label": "dev.to", "href": "https://dev.to/dev_jhawar", "handle": "dev_jhawar" },
+    { "label": "Telegram", "href": "https://t.me/devjhawar", "handle": "devjhawar" },
+    { "label": "LeetCode", "href": "https://leetcode.com/u/devjhawar/", "handle": "devjhawar" },
+    { "label": "Codeforces", "href": "https://codeforces.com/profile/devjhawar11", "handle": "devjhawar11" }
+  ]
+}

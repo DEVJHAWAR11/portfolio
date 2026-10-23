@@ -1,0 +1,259 @@
+---
+import profile from '@/data/profile.json';
+
+const nav = [
+  { href: '/#projects', label: 'Projects' },
+  { href: '/#open-source', label: 'Open source' },
+  { href: '/#writing', label: 'Writing' },
+  { href: '/#contact', label: 'Contact' },
+];
+---
+
+<header class="bar" data-noprint>
+  <div class="inner">
+    <a href="/" class="mark" aria-label={`${profile.name}, home`}>
+      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+        <rect x="1" y="1" width="22" height="22" fill="var(--fg)" />
+        <rect x="12" y="12" width="11" height="11" fill="var(--accent)" />
+      </svg>
+      <span>Dev Jhawar</span>
+    </a>
+    <span class="limit mono" id="limit" role="status" hidden></span>
+    <nav aria-label="Sections">
+      {nav.map((n) => <a href={n.href}>{n.label}</a>)}
+    </nav>
+    <div class="right">
+      <button class="find" type="button" data-palette aria-label="Search the site" aria-keyshortcuts="Control+K Meta+K">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+          <path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+        <span class="lbl">Search</span>
+        <kbd class="mono" id="find-key">Ctrl K</kbd>
+      </button>
+      <span class="clock mono" title="My local time in Bhubaneswar">
+        <span class="dot ok" id="clock-dot"></span>
+        <span id="clock-time">--:--</span> IST
+      </span>
+      <button class="sq" id="theme-toggle" type="button" aria-label="Switch to dark theme">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3" />
+          <path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor" />
+        </svg>
+      </button>
+      <a class="btn solid sm" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
+    </div>
+  </div>
+</header>
+
+<script>
+  // Clock in my timezone; the dot goes amber when I'm probably asleep.
+  const time = document.getElementById('clock-time')!;
+  const dot = document.getElementById('clock-dot')!;
+  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+  const tick = () => {
+    const t = fmt.format(new Date());
+    const h = Number(t.slice(0, 2));
+    const awake = h >= 8 || h < 2;
+    time.textContent = t;
+    dot.className = `dot ${awake ? 'ok' : 'pend'}`;
+    dot.parentElement!.title = awake ? 'My local time. Probably awake.' : 'My local time. Asleep, I reply in the morning.';
+  };
+  tick();
+  setInterval(tick, 20_000);
+
+  if (/Mac|iPhone|iPad/.test(navigator.platform)) document.getElementById('find-key')!.textContent = '⌘K';
+
+  // On the home page the logo scrolls to the top, behind a token-bucket rate limiter:
+  // 5 tokens, one back every second. Click fast enough to empty it and it answers 429 for a few seconds.
+  const mark = document.querySelector<HTMLAnchorElement>('.mark')!;
+  const limit = document.getElementById('limit')!;
+  const CAP = 5;
+  let tokens = CAP;
+  let last = performance.now();
+  let lockedUntil = 0;
+  let hideTimer = 0;
+  const meter = (n: number) => '■'.repeat(n) + '□'.repeat(CAP - n);
+  mark.addEventListener('click', (e) => {
+    if (location.pathname !== '/') return;
+    e.preventDefault();
+    const now = performance.now();
+    tokens = Math.min(CAP, tokens + (now - last) / 1000);
+    last = now;
+    clearTimeout(hideTimer);
+    if (now < lockedUntil) {
+      limit.textContent = `429 Too Many Requests. Try again in ${Math.ceil((lockedUntil - now) / 1000)} s`;
+    } else if (tokens < 1) {
+      lockedUntil = now + 3000;
+      limit.dataset.state = 'limited';
+      limit.textContent = '429 Too Many Requests. Try again in 3 s';
+      setTimeout(() => {
+        tokens = CAP;
+        delete limit.dataset.state;
+        limit.textContent = `${meter(CAP)} bucket refilled`;
+        hideTimer = window.setTimeout(() => (limit.hidden = true), 1500);
+      }, 3000);
+      limit.hidden = false;
+      return;
+    } else {
+      tokens -= 1;
+      window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      // Only shows up once someone is clearly clicking repeatedly.
+      if (tokens >= CAP - 2) return;
+      limit.textContent = `${meter(Math.floor(tokens))} ${Math.floor(tokens)} of ${CAP} requests left`;
+    }
+    limit.hidden = false;
+    hideTimer = window.setTimeout(() => (limit.hidden = true), 2000);
+  });
+
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle')!;
+  const sync = () => btn.setAttribute('aria-label', root.dataset.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  sync();
+  btn.addEventListener('click', () => {
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    const apply = () => {
+      root.dataset.theme = next;
+      sync();
+    };
+    const vt = (document as any).startViewTransition;
+    if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) vt.call(document, apply);
+    else apply();
+    try {
+      localStorage.setItem('theme-v2', next);
+    } catch {}
+  });
+</script>
+
+<style>
+  .bar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 50;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--edge);
+  }
+  .inner {
+    width: min(var(--w), 100% - 2 * var(--gutter));
+    height: 3.75rem;
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    position: relative;
+  }
+  .limit {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .limit[hidden] {
+    display: none;
+  }
+  .limit[data-state='limited'] {
+    border-color: var(--fail);
+    color: var(--fail);
+  }
+  .mark {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font: 800 1.15rem/1 var(--display);
+    font-stretch: 80%;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  nav {
+    display: flex;
+    gap: 2rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+  }
+  nav a {
+    white-space: nowrap;
+    padding-block: 0.3rem;
+    background: linear-gradient(var(--accent), var(--accent)) 0 100% / 0 2px no-repeat;
+    transition: background-size 0.25s var(--ease), color 0.15s;
+  }
+  nav a:hover {
+    color: var(--accent);
+    background-size: 100% 2px;
+  }
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-right: 0.4rem;
+    color: var(--muted);
+  }
+  .find {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    height: 2.2rem;
+    padding: 0 0.5rem 0 0.7rem;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 0.85rem;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .find:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  .find kbd {
+    padding: 0.05rem 0.3rem;
+    border: 1px solid var(--edge);
+    font-size: 0.68rem;
+  }
+  .lbl {
+    margin-right: 1.2rem;
+  }
+  .sq {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .sq:hover {
+    border-color: var(--fg);
+  }
+  @media (max-width: 900px) {
+    nav {
+      display: none;
+    }
+  }
+  @media (max-width: 1100px) {
+    .lbl {
+      display: none;
+    }
+  }
+  @media (max-width: 480px) {
+    .clock,
+    .find kbd {
+      display: none;
+    }
+    .find {
+      width: 2.2rem;
+      padding: 0;
+      justify-content: center;
+    }
+  }
+</style>

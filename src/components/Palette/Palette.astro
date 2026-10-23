@@ -1,0 +1,337 @@
+---
+// ⌘K / Ctrl K: search projects, posts, PRs and terms, or run a few actions.
+// The index (/search.json) is fetched the first time the palette opens.
+---
+
+<dialog class="palette" id="palette" aria-label="Search the site">
+  <div class="field">
+    <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true">
+      <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.5" />
+    </svg>
+    <input
+      id="pal-q"
+      type="text"
+      placeholder="Search projects, posts, pull requests…"
+      autocomplete="off"
+      spellcheck="false"
+      role="combobox"
+      aria-expanded="true"
+      aria-controls="pal-list"
+      aria-autocomplete="list"
+    />
+    <kbd class="mono">Esc</kbd>
+  </div>
+  <ul id="pal-list" role="listbox" aria-label="Results"></ul>
+  <p class="empty" id="pal-empty" hidden></p>
+  <footer>
+    <label class="mono rank">
+      <input type="checkbox" id="pal-rank" />
+      Show how results are ranked
+    </label>
+    <span class="mono keys"><kbd>↑</kbd><kbd>↓</kbd> move <kbd>Enter</kbd> open</span>
+  </footer>
+  <p class="mono how" id="pal-how" hidden>
+    Two searches run on every keystroke: keyword (BM25) and fuzzy (letter trigrams, so typos still match). Each result
+    scores 1/(60 + rank) from each list, summed. That's Reciprocal Rank Fusion, the same merge CaseCompass uses.
+  </p>
+</dialog>
+
+<script>
+  import { createIndex, type Doc, type Hit } from './search';
+
+  const dlg = document.getElementById('palette') as HTMLDialogElement;
+  const q = document.getElementById('pal-q') as HTMLInputElement;
+  const list = document.getElementById('pal-list')!;
+  const empty = document.getElementById('pal-empty')!;
+  const rank = document.getElementById('pal-rank') as HTMLInputElement;
+  const how = document.getElementById('pal-how')!;
+
+  let docs: Doc[] = [];
+  let search: ReturnType<typeof createIndex> | null = null;
+  let loading: Promise<void> | null = null;
+  let rows: Hit[] = [];
+  let active = 0;
+
+  const load = () =>
+    (loading ??= fetch('/search.json')
+      .then((r) => r.json())
+      .then((d: Doc[]) => {
+        docs = d;
+        search = createIndex(d);
+      })
+      .catch(() => {
+        loading = null;
+      }));
+
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
+
+  function render() {
+    const term = q.value.trim();
+    rows = term && search ? search(term) : docs.filter((d) => d.pin).map((doc) => ({ doc, score: 0 }));
+    active = Math.min(active, Math.max(rows.length - 1, 0));
+    empty.hidden = rows.length > 0 || !search;
+    empty.textContent = `Nothing matches “${term}”. Try a project name, a tool like Redis, or a repo.`;
+    let last = '';
+    list.innerHTML = rows
+      .map((h, i) => {
+        // Before typing, results are grouped under their kind; after, each row carries its kind instead.
+        const group = !term && h.doc.k !== last ? `<li class="group mono" role="presentation">${h.doc.k === 'Action' ? 'Actions' : h.doc.k === 'Section' ? 'Jump to' : 'Projects'}</li>` : '';
+        last = h.doc.k;
+        const why = term
+          ? `<span class="why mono">${h.kw ? `keyword #${h.kw}` : 'keyword –'}<br>${h.fz ? `fuzzy #${h.fz}` : 'fuzzy –'}<br><b>${h.score.toFixed(4)}</b></span>`
+          : '';
+        return `${group}<li role="option" id="pal-${i}" data-i="${i}" aria-selected="${i === active}">
+          ${term ? `<span class="kind mono">${h.doc.k}</span>` : ''}
+          <span class="txt"><span class="t">${esc(h.doc.t)}</span><span class="s">${esc(h.doc.s)}</span></span>${why}</li>`;
+      })
+      .join('');
+    q.setAttribute('aria-activedescendant', rows.length ? `pal-${active}` : '');
+  }
+
+  function move(to: number) {
+    if (!rows.length) return;
+    active = (to + rows.length) % rows.length;
+    list.querySelectorAll('[role=option]').forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+    document.getElementById(`pal-${active}`)?.scrollIntoView({ block: 'nearest' });
+  }
+
+  async function run(i: number, newTab = false) {
+    const d = rows[i]?.doc;
+    if (!d) return;
+    if (d.a === 'copy-email') {
+      await navigator.clipboard?.writeText(d.s).catch(() => {});
+      const s = list.querySelector(`#pal-${i} .s`);
+      if (s) s.textContent = `Copied ${d.s}`;
+      setTimeout(() => dlg.close(), 700);
+      return;
+    }
+    if (d.a === 'theme') {
+      dlg.close();
+      document.getElementById('theme-toggle')?.click();
+      return;
+    }
+    if (!d.h) return;
+    dlg.close();
+    const external = /^https?:/.test(d.h);
+    if (external || newTab) window.open(d.h, '_blank', 'noopener');
+    else location.href = d.h;
+  }
+
+  async function open() {
+    if (dlg.open) return;
+    q.value = '';
+    active = 0;
+    dlg.showModal();
+    await load();
+    render();
+  }
+
+  q.addEventListener('input', () => {
+    active = 0;
+    render();
+  });
+  q.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') move(active + 1);
+    else if (e.key === 'ArrowUp') move(active - 1);
+    else if (e.key === 'Enter') run(active, e.metaKey || e.ctrlKey);
+    else return;
+    e.preventDefault();
+  });
+  list.addEventListener('click', (e) => {
+    const li = (e.target as Element).closest<HTMLElement>('[data-i]');
+    if (li) run(Number(li.dataset.i), e.metaKey || e.ctrlKey);
+  });
+  list.addEventListener('pointermove', (e) => {
+    const li = (e.target as Element).closest<HTMLElement>('[data-i]');
+    if (li && Number(li.dataset.i) !== active) move(Number(li.dataset.i));
+  });
+  // Click on the backdrop closes it.
+  dlg.addEventListener('click', (e) => e.target === dlg && dlg.close());
+  rank.addEventListener('change', () => {
+    dlg.toggleAttribute('data-rank', rank.checked);
+    how.hidden = !rank.checked;
+  });
+
+  addEventListener('keydown', (e) => {
+    const typing = (e.target as Element).closest?.('input, textarea, [contenteditable]');
+    if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      dlg.open ? dlg.close() : open();
+    } else if (e.key === '/' && !typing && !dlg.open) {
+      e.preventDefault();
+      open();
+    }
+  });
+  document.querySelectorAll<HTMLElement>('[data-palette]').forEach((b) => {
+    b.addEventListener('click', open);
+    b.addEventListener('pointerenter', load, { once: true });
+  });
+</script>
+
+<style is:global>
+  /* Global, scoped by hand under .palette: the result rows are built in the script, outside Astro's scoped styles. */
+  .palette {
+    width: min(42rem, 100vw - 2rem);
+    max-height: min(34rem, 100dvh - 4rem);
+    margin: 12vh auto auto;
+    padding: 0;
+    border: 1px solid var(--fg);
+    background: var(--panel);
+    color: var(--fg);
+    overflow: hidden;
+    flex-direction: column;
+  }
+  .palette[open] {
+    display: flex;
+  }
+  .palette::backdrop {
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    backdrop-filter: blur(2px);
+  }
+  .palette .field {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1rem;
+    border-bottom: 1px solid var(--edge);
+    color: var(--muted);
+  }
+  .palette .field input {
+    flex: 1;
+    min-width: 0;
+    height: 3.6rem;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--fg);
+    font: 400 1.1rem/1 var(--sans);
+  }
+  .palette .field input::placeholder {
+    color: var(--faint);
+  }
+  .palette kbd {
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--edge);
+    font: 400 0.7rem/1.4 var(--mono);
+    color: var(--muted);
+  }
+  .palette ul {
+    flex: 1;
+    margin: 0;
+    padding: 0.4rem;
+    list-style: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .palette .group {
+    padding: 0.7rem 0.6rem 0.3rem;
+    color: var(--faint);
+  }
+  .palette [role='option'] {
+    display: grid;
+    grid-template-columns: 4.2rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.6rem;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+  /* Before typing there is no kind column. */
+  .palette [role='option']:not(:has(.kind)) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .palette [role='option'][aria-selected='true'] {
+    background: var(--accent-soft);
+    border-left-color: var(--accent);
+  }
+  .palette .kind {
+    color: var(--faint);
+    font-size: 0.7rem;
+  }
+  .palette .txt {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .palette .t,
+  .palette .s {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .palette .t {
+    font-weight: 500;
+  }
+  .palette .s {
+    font-size: 0.84rem;
+    color: var(--muted);
+  }
+  .palette .why {
+    display: none;
+    text-align: right;
+    font-size: 0.66rem;
+    line-height: 1.35;
+    color: var(--faint);
+  }
+  .palette .why b {
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .palette[data-rank] .why {
+    display: block;
+  }
+  .palette .empty {
+    margin: 0;
+    padding: 1.5rem 1rem;
+    color: var(--muted);
+  }
+  .palette footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--edge);
+    color: var(--muted);
+  }
+  .palette .rank {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
+  }
+  .palette .rank input {
+    accent-color: var(--accent);
+    margin: 0;
+  }
+  .palette .keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .palette .keys kbd:nth-of-type(2) {
+    margin-right: 0.4rem;
+  }
+  .palette .keys kbd:nth-of-type(3) {
+    margin-left: 0.4rem;
+  }
+  .palette .how {
+    margin: 0;
+    padding: 0 1rem 0.8rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  @media (max-width: 560px) {
+    .palette {
+      margin-top: 4.5rem;
+    }
+    .palette .keys,
+    .palette .kind {
+      display: none;
+    }
+    .palette [role='option'] {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+  }
+</style>
