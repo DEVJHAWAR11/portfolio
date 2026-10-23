@@ -16,10 +16,15 @@ import { stackIcon } from '@/lib/stack-icon';
 
 export async function getStaticPaths() {
   const projects = (await getCollection('projects')).sort((a, b) => a.data.order - b.data.order);
-  return projects.map((p, i) => ({ params: { slug: p.id }, props: { p, next: projects[(i + 1) % projects.length] } }));
+  // Previous and next stay within the same group, so the five featured case studies lead into each other.
+  return projects.map((p) => {
+    const group = projects.filter((x) => x.data.featured === p.data.featured);
+    const i = group.indexOf(p);
+    return { params: { slug: p.id }, props: { p, prev: group[(i - 1 + group.length) % group.length], next: group[(i + 1) % group.length] } };
+  });
 }
 
-const { p, next } = Astro.props;
+const { p, prev, next } = Astro.props;
 const { Content } = await render(p);
 const d = p.data;
 
@@ -69,7 +74,8 @@ const links = [
 ---
 
 <Base title={`${d.title}, by Dev Jhawar`} description={d.tagline} image={`/og/${p.id}.png`}>
-  <article>
+  <div class="progress" aria-hidden="true"><span data-progress></span></div>
+  <article data-read>
     <a href="/#projects" class="mono back">← All projects</a>
 
     <header class="head">
@@ -207,13 +213,40 @@ const links = [
       </aside>
     </div>
 
-    <a class="next blk" href={`/projects/${next.id}`}>
-      <span class="mono muted">Next project</span>
-      <span class="display">{next.data.title}</span>
-      <span class="muted">{next.data.tagline}</span>
-    </a>
+    <nav class="pager" aria-label="More projects">
+      <a class="blk prev" href={`/projects/${prev.id}`} rel="prev">
+        <span class="mono muted">← Previous project</span>
+        <span class="display">{prev.data.title}</span>
+        <span class="muted">{prev.data.tagline}</span>
+      </a>
+      <a class="blk next" href={`/projects/${next.id}`} rel="next">
+        <span class="mono muted">Next project →</span>
+        <span class="display">{next.data.title}</span>
+        <span class="muted">{next.data.tagline}</span>
+      </a>
+    </nav>
   </article>
 </Base>
+
+<script>
+  // The reading line under the header fills from the top of the case study to the end of the write-up.
+  const bar = document.querySelector<HTMLElement>('[data-progress]');
+  const body = document.querySelector<HTMLElement>('[data-read] .layout');
+  if (bar && body) {
+    let queued = false;
+    const draw = () => {
+      queued = false;
+      const end = body.getBoundingClientRect().bottom + scrollY - innerHeight;
+      bar.style.transform = `scaleX(${end > 0 ? Math.min(1, Math.max(0, scrollY / end)) : 1})`;
+    };
+    const ask = () => {
+      if (!queued) (queued = true), requestAnimationFrame(draw);
+    };
+    addEventListener('scroll', ask, { passive: true });
+    addEventListener('resize', ask);
+    draw();
+  }
+</script>
 
 <style>
   article {
@@ -464,22 +497,63 @@ const links = [
   .hl li::marker {
     color: var(--accent);
   }
-  .next {
+  .progress {
+    position: fixed;
+    inset: 3.75rem 0 auto;
+    z-index: 51;
+    height: 3px;
+    pointer-events: none;
+  }
+  .progress span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  @media print {
+    .progress {
+      display: none;
+    }
+  }
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 5rem;
+  }
+  .pager a {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    margin-top: 5rem;
+    min-width: 0;
     padding: 1.5rem 1.6rem;
     transition: border-color 0.15s;
   }
-  .next .display {
-    font-size: clamp(2.4rem, 7vw, 4.2rem);
+  .pager .next {
+    align-items: flex-end;
+    text-align: right;
   }
-  .next:hover {
+  .pager .display {
+    font-size: clamp(2rem, 5vw, 3.4rem);
+    overflow-wrap: anywhere;
+  }
+  .pager a:hover {
     border-color: var(--fg);
   }
-  .next:hover .display {
+  .pager a:hover .display {
     color: var(--accent);
+  }
+  @media (max-width: 640px) {
+    .pager {
+      grid-template-columns: 1fr;
+    }
+    /* On a phone, the way forward comes first. */
+    .pager .next {
+      order: -1;
+      align-items: flex-start;
+      text-align: left;
+    }
   }
   @media (max-width: 900px) {
     .demo-head {
