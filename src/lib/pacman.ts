@@ -2,6 +2,7 @@
 // along the grid like the arcade maze, and eats it. Quiet days are left alone. Runs on the map's own SVG,
 // so the dots he eats are the real days.
 import type { Day } from './github';
+import { sfx } from './sfx';
 
 const NS = 'http://www.w3.org/2000/svg';
 const SPEED = 110; // map units per second, about nine days' worth of grid
@@ -48,6 +49,7 @@ export function pacman(svg: SVGSVGElement, days: Day[], onScore: (score: number)
   let next = 1;
   let score = 0;
   let deg = 0;
+  let bit = -1e9; // last chomp sound, so a dense stretch doesn't buzz
   return new Promise((resolve) => {
     const t0 = performance.now();
     const frame = (now: number) => {
@@ -59,6 +61,7 @@ export function pacman(svg: SVGSVGElement, days: Day[], onScore: (score: number)
           s.dot.classList.add('eaten');
           score += s.n!;
           onScore(score);
+          if (t - bit > 120) (sfx.chomp(), (bit = t));
         }
       }
       const a = stops[Math.max(0, next - 1)];

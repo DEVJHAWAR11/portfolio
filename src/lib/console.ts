@@ -2,6 +2,7 @@
 import profile from '@/data/profile.json';
 import { loadStatus } from './status-client';
 import { chaos } from './chaos';
+import { setSound } from './sfx';
 
 const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2b37e6';
 console.log(
@@ -17,6 +18,7 @@ const help = {
   'dev.hire()': 'opens an email to me',
   'dev.links()': 'where else to find me',
   'dev.chaos()': 'lets a chaos monkey loose on the page',
+  'dev.sound(false)': 'turns the click sounds off (true for on)',
 };
 
 (window as unknown as { dev: object }).dev = {
@@ -36,4 +38,5 @@ const help = {
   },
   links: () => console.table(Object.fromEntries(profile.links.map((l) => [l.label, l.href]))),
   chaos: () => (chaos(), 'Chaos monkey released. Watch the page.'),
+  sound: (on = true) => (setSound(on), `Sounds ${on ? 'on' : 'off'}`),
 };

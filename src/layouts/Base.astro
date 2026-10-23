@@ -21,7 +21,8 @@ const {
   image = '/og/home.png',
 } = Astro.props;
 const ogUrl = new URL(image, Astro.site);
-const canonical = new URL(Astro.url.pathname, Astro.site);
+// Pages build as files (index.html, status.html), but are served without the extension.
+const canonical = new URL(Astro.url.pathname.replace(/(index)?\.html$/, ''), Astro.site);
 ---
 
 <!doctype html>
