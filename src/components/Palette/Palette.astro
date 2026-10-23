@@ -99,13 +99,6 @@
   async function run(i: number, newTab = false) {
     const d = rows[i]?.doc;
     if (!d) return;
-    if (d.a === 'copy-email') {
-      await navigator.clipboard?.writeText(d.s).catch(() => {});
-      const s = list.querySelector(`#pal-${i} .s`);
-      if (s) s.textContent = `Copied ${d.s}`;
-      setTimeout(() => dlg.close(), 700);
-      return;
-    }
     if (d.a === 'theme') {
       dlg.close();
       document.getElementById('theme-toggle')?.click();

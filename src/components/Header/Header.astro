@@ -33,7 +33,7 @@ const nav = [
       </button>
       <span class="clock mono" title="My local time in Bhubaneswar">
         <span class="dot ok" id="clock-dot"></span>
-        <span id="clock-time">--:--</span> IST
+        <span id="clock-time">--:--:--</span> IST
       </span>
       <button class="sq" id="theme-toggle" type="button" aria-label="Switch to dark theme">
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -50,7 +50,7 @@ const nav = [
   // Clock in my timezone; the dot goes amber when I'm probably asleep.
   const time = document.getElementById('clock-time')!;
   const dot = document.getElementById('clock-dot')!;
-  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   const tick = () => {
     const t = fmt.format(new Date());
     const h = Number(t.slice(0, 2));
@@ -60,7 +60,7 @@ const nav = [
     dot.parentElement!.title = awake ? 'My local time. Probably awake.' : 'My local time. Asleep, I reply in the morning.';
   };
   tick();
-  setInterval(tick, 20_000);
+  setInterval(tick, 1000);
 
   if (/Mac|iPhone|iPad/.test(navigator.platform)) document.getElementById('find-key')!.textContent = '⌘K';
 

@@ -1,6 +1,6 @@
 ---
 // My photo as halftone dots (built by /halftone.svg). The dots are a CSS mask, so they take the theme's colours.
-// An accent copy shows through a circle that follows the cursor.
+// A warm copy shows through a circle that follows the cursor.
 ---
 
 <div class="portrait" data-portrait role="img" aria-label="Portrait of Dev Jhawar, drawn in dots">
@@ -35,6 +35,10 @@
   .portrait {
     position: relative;
     aspect-ratio: 1;
+    --sun: linear-gradient(150deg, #f29a12 10%, #e2365b 90%);
+  }
+  :global([data-theme='dark']) .portrait {
+    --sun: linear-gradient(150deg, #ffc35a 10%, #ff5d7a 90%);
   }
   .layer {
     position: absolute;
@@ -46,7 +50,7 @@
     background: var(--fg);
   }
   .hot {
-    background: var(--accent);
+    background: var(--sun);
     -webkit-mask-image: url('/halftone.svg'), radial-gradient(circle at var(--x, 70%) var(--y, 84%), #000 15%, transparent 15.3%);
     mask-image: url('/halftone.svg'), radial-gradient(circle at var(--x, 70%) var(--y, 84%), #000 15%, transparent 15.3%);
     -webkit-mask-size: contain, 100% 100%;

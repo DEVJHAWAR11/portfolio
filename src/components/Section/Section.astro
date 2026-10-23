@@ -2,7 +2,7 @@
 interface Props {
   id: string;
   title: string;
-  label: string; // short plain-language line beside the heading
+  label?: string; // short plain-language line beside the heading
 }
 const { id, title, label } = Astro.props;
 ---
@@ -10,7 +10,7 @@ const { id, title, label } = Astro.props;
 <section id={id} class="span">
   <header class="head">
     <h2>{title}</h2>
-    <p class="tag">{label}</p>
+    {label && <p class="tag">{label}</p>}
   </header>
   <slot />
 </section>
