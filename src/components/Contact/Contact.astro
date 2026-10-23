@@ -15,6 +15,7 @@ const icons: Record<string, string> = {
 <div class="contact blk">
   <span class="plus p1" aria-hidden="true"></span>
   <span class="plus p2" aria-hidden="true"></span>
+  <div class="main">
   <p class="mono where"><span class="dot ok"></span> Bhubaneswar, India (UTC+5:30)</p>
   <h3 class="display">Building an agent, a RAG pipeline, or something that has to stay up? Tell me about it.</h3>
   <p class="muted lede">
@@ -52,9 +53,76 @@ const icons: Record<string, string> = {
     </details>
     <a class="btn" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
   </div>
+  </div>
+
+  <form class="note" data-note novalidate>
+    <h4>Leave a quick note</h4>
+    <p class="muted">No need to open your mail app. It lands straight in my inbox.</p>
+    <label>
+      <span>Name or email <small>(optional, if you'd like a reply)</small></span>
+      <input name="from" maxlength="120" autocomplete="email" />
+    </label>
+    <label>
+      <span>Message</span>
+      <textarea name="msg" rows="4" maxlength="2000" required></textarea>
+    </label>
+    <label class="site" aria-hidden="true">Website <input name="site" tabindex="-1" autocomplete="off" /></label>
+    <div class="send">
+      <button class="btn solid" type="submit">Send note</button>
+      <p class="mono state" data-note-state role="status"></p>
+    </div>
+  </form>
 </div>
 
 <script>
+  import { sfx } from '@/lib/sfx';
+
+  // The quick note posts to /api/note, which emails it to me.
+  const form = document.querySelector<HTMLFormElement>('[data-note]');
+  if (form) {
+    const state = form.querySelector<HTMLElement>('[data-note-state]')!;
+    const btn = form.querySelector<HTMLButtonElement>('button')!;
+    const msg = form.elements.namedItem('msg') as HTMLTextAreaElement;
+    const opened = Date.now();
+    const say = (text: string, kind = '') => {
+      state.textContent = text;
+      state.dataset.kind = kind;
+    };
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
+      if (data.msg.trim().length < 2) {
+        say('Write a few words first.', 'err');
+        msg.focus();
+        return;
+      }
+      btn.disabled = true;
+      say('Sending…');
+      const res = await fetch('/api/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, t: Date.now() - opened }),
+      }).catch(() => null);
+      btn.disabled = false;
+      const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+      if (res?.ok || (local && res?.status === 404)) {
+        form.reset();
+        say(local && !res?.ok ? 'Looks good. This is a local preview, so nothing was sent.' : 'Sent. Thanks, I read every one.', 'ok');
+        sfx.unlock();
+        return;
+      }
+      const why = res && (await res.json().catch(() => ({}))).error;
+      say(
+        why === 'limit'
+          ? "That's a lot of notes. Try again in a bit, or email me."
+          : why === 'length'
+            ? 'Keep it under 2,000 characters.'
+            : "It didn't go through. Email me instead, it's in Get in touch.",
+        'err',
+      );
+    });
+  }
+
   // Close the dropdown on outside click or Escape.
   document.querySelectorAll<HTMLDetailsElement>('[data-dd]').forEach((dd) => {
     document.addEventListener('click', (e) => {
@@ -71,7 +139,90 @@ const icons: Record<string, string> = {
 
 <style>
   .contact {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+    align-items: start;
     padding: clamp(1.5rem, 4vw, 3rem);
+  }
+  @media (max-width: 860px) {
+    .contact {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* The quick note: a small form beside the pitch. */
+  .note {
+    display: grid;
+    gap: 0.8rem;
+    padding: 1.2rem;
+    border: 1px solid var(--fg);
+    background: var(--bg);
+  }
+  .note h4 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  .note > p {
+    margin: -0.4rem 0 0.2rem;
+    font-size: 0.88rem;
+  }
+  .note label {
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+  .note small {
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .note input,
+  .note textarea {
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--edge);
+    border-radius: 0;
+    background: var(--panel);
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.95rem;
+  }
+  .note textarea {
+    resize: vertical;
+    min-height: 5.5rem;
+  }
+  .note input:focus-visible,
+  .note textarea:focus-visible {
+    border-color: var(--accent);
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+  .note .site {
+    position: absolute;
+    left: -9999px;
+  }
+  .send {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.9rem;
+  }
+  .send button:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .state {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .state[data-kind='ok'] {
+    color: var(--ok);
+  }
+  .state[data-kind='err'] {
+    color: var(--fail);
   }
   .p1 {
     top: -8px;

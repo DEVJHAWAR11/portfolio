@@ -18,6 +18,7 @@ const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'
       <div class="cta">
         <a class="btn solid" href="#contact">Get in touch</a>
         <a class="btn" href="#projects">See projects</a>
+        <a class="btn quick" href="/quick">In a hurry? 60-second view</a>
       </div>
       <p class="mono socials">
         {
@@ -71,6 +72,9 @@ const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
+  }
+  .cta .quick {
+    border-style: dashed;
   }
   .socials {
     display: flex;

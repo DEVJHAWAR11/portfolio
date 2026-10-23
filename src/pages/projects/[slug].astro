@@ -232,6 +232,13 @@ const links = [
     margin: 0;
     font-size: clamp(3.4rem, 11vw, 8rem);
     line-height: 0.85;
+    overflow-wrap: anywhere;
+  }
+  /* The narrowest phones: long names like WatchTower would otherwise run past the edge. */
+  @media (max-width: 360px) {
+    h1 {
+      font-size: 2.9rem;
+    }
   }
   .tagline {
     max-width: 40rem;
