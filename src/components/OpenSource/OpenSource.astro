@@ -2,16 +2,25 @@
 // Contribution map and pull requests to other people's repos.
 // Rendered from a build-time snapshot, then refreshed from /api/github (cached for an hour) when that is newer.
 import { getGitHub } from '@/lib/github';
-import { heatmap, statsList, prRows, packCals, total } from '@/lib/oss-render';
+import { heatmap, prGroups, packCals, total } from '@/lib/oss-render';
 import Pending from '@/components/Pending/Pending.astro';
 
 const { prs, cals, at } = await getGitHub();
 const first = cals[0];
 const counts = { merged: 0, open: 0, closed: 0 };
 prs.forEach((p) => counts[p.state]++);
-const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, n]) => [k, k[0].toUpperCase() + k.slice(1), n])].filter(
+const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, n]) => [k, k === 'open' ? 'In review' : k[0].toUpperCase() + k.slice(1), n])].filter(
   ([k, , n]) => k !== 'closed' || (n as number) > 0,
 ) as [string, string, number][];
+const repos = new Set(prs.map((p) => p.repo)).size;
+// Colour sets for the map. Each sets four shades, from a quiet day to the busiest.
+const palettes = [
+  ['ink', 'Ink'],
+  ['grass', 'Grass'],
+  ['ember', 'Ember'],
+  ['ocean', 'Ocean'],
+  ['candy', 'Candy'],
+];
 ---
 
 <div class="oss" data-oss data-at={at} data-cals={packCals(cals)}>
@@ -26,15 +35,32 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
               </button>
             ))}
           </div>
-          <button type="button" class="btn sm" data-replay>
-            Replay the year
-          </button>
+          <div class="acts">
+            <div class="heat" role="group" aria-label="Map colours">
+              {palettes.map(([id, name], i) => (
+                <button type="button" data-heat={id} aria-pressed={i === 0 ? 'true' : 'false'} title={name} aria-label={`${name} colours`}>
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </button>
+              ))}
+            </div>
+            <button type="button" class="btn sm" data-replay>
+              Replay
+            </button>
+            <button type="button" class="btn sm pacbtn" data-pac>
+              <svg viewBox="-6 -6 12 12" width="13" height="13" aria-hidden="true">
+                <path d="M0 0 L4.6 2.7 A5.3 5.3 0 1 1 4.6 -2.7 Z" fill="currentColor" />
+              </svg>
+              Play Pac-Man
+            </button>
+          </div>
         </div>
-        <div class="map" data-map set:html={heatmap(first.days)} />
+        <div class="map" data-map data-heat="ink" set:html={heatmap(first.days)} />
         <p class="mono cap" data-cap aria-live="polite">
           Each dot is a day. Bigger dots mean more commits, PRs and reviews.
         </p>
-        <dl class="stats mono" data-stats set:html={statsList(first.days)} />
       </div>
     )
   }
@@ -53,43 +79,37 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
         }
       </div>
       <p class="mono checked">
-        Checked GitHub <span data-ago>at build time</span>
+        <span data-repos>{repos}</span> repos. Checked GitHub <span data-ago>at build time</span>
       </p>
     </div>
-    <ul class="prs" data-prs set:html={prRows(prs)} />
-    <button class="btn showall" type="button" data-showall aria-expanded="false" hidden>
-      <span>Show all</span>
-      <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
-        <path d="M2 4.5 6 8.5 10 4.5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
-      </svg>
-    </button>
+    <ul class="prs" data-prs set:html={prGroups(prs)} />
   </div>
 </div>
 
 <script>
-  import { heatmap, statsList, prRows, packCals, unpackCals, dayLabel, total } from '@/lib/oss-render';
+  import { heatmap, prGroups, packCals, unpackCals, dayLabel, total } from '@/lib/oss-render';
+  import { pacman } from '@/lib/pacman';
   import type { Cal, Day, GitHubData, PR } from '@/lib/github';
 
   const root = document.querySelector<HTMLElement>('[data-oss]');
   if (root) {
-    const SHOWN = 8;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s);
     const map = $('[data-map]');
     const cap = $('[data-cap]');
     const list = $('[data-prs]');
-    const more = $<HTMLButtonElement>('[data-showall]');
     const capText = cap?.textContent ?? '';
+    const say = (t: string) => cap && (cap.textContent = t);
     let filter = 'all';
-    let open = false;
+    // Replay and Pac-Man both draw on the map, so only one runs at a time and the year stays put meanwhile.
+    let busy = false;
 
     let cals: Cal[] = unpackCals(root.dataset.cals!);
     let year = cals[0]?.id;
     let days: Day[] = cals[0]?.days ?? [];
     if (map) map.scrollLeft = map.scrollWidth;
+    const yearName = () => (year === 'past' ? 'the past year' : year);
 
-    // The past year and the current one still have a running streak; older years don't.
-    const live = (c: Cal) => c.id === 'past' || c.id === String(new Date().getFullYear());
     function showYear(id: string) {
       const c = cals.find((x) => x.id === id) ?? cals[0];
       if (!c || !map) return;
@@ -97,29 +117,48 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
       days = c.days;
       map.innerHTML = heatmap(c.days, c.id === 'past' ? 'the past year' : c.label);
       map.scrollLeft = map.scrollWidth;
-      $('[data-stats]')!.innerHTML = statsList(c.days, live(c));
       root!.querySelectorAll<HTMLElement>('[data-y]').forEach((b) => {
         b.setAttribute('aria-pressed', String(b.dataset.y === c.id));
         b.querySelector('span')!.textContent = total(cals.find((x) => x.id === b.dataset.y)?.days ?? []).toLocaleString('en-IN');
       });
     }
-    root.querySelectorAll<HTMLButtonElement>('[data-y]').forEach((b) => b.addEventListener('click', () => !replaying && showYear(b.dataset.y!)));
+    root.querySelectorAll<HTMLButtonElement>('[data-y]').forEach((b) => b.addEventListener('click', () => !busy && showYear(b.dataset.y!)));
+
+    // Colour sets, remembered for the next visit.
+    const heatBtns = root.querySelectorAll<HTMLButtonElement>('.heat [data-heat]');
+    function setHeat(id: string) {
+      if (!map || ![...heatBtns].some((b) => b.dataset.heat === id)) return;
+      map.dataset.heat = id;
+      heatBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.heat === id)));
+      try {
+        localStorage.setItem('heat', id);
+      } catch {}
+    }
+    heatBtns.forEach((b) => b.addEventListener('click', () => setHeat(b.dataset.heat!)));
+    try {
+      setHeat(localStorage.getItem('heat') ?? 'ink');
+    } catch {}
 
     // Hovering or tapping a dot names that day in the caption.
     map?.addEventListener('pointerover', (e) => {
       const i = (e.target as Element).getAttribute('data-i');
-      if (i && cap) cap.textContent = dayLabel(days[Number(i)]);
+      if (i && !busy) say(dayLabel(days[Number(i)]));
     });
-    map?.addEventListener('pointerleave', () => cap && (cap.textContent = capText));
+    map?.addEventListener('pointerleave', () => !busy && say(capText));
+
+    const replay = $<HTMLButtonElement>('[data-replay]');
+    const pac = $<HTMLButtonElement>('[data-pac]');
+    const lock = (on: boolean) => {
+      busy = on;
+      if (replay) replay.disabled = on;
+      if (pac) pac.disabled = on;
+    };
 
     // Replay fills the year in week by week while the total counts up.
-    const replay = $<HTMLButtonElement>('[data-replay]');
-    let replaying = false;
     replay?.addEventListener('click', async () => {
-      const totalEl = $('[data-total]');
       const dots = [...map!.querySelectorAll<SVGCircleElement>('circle')];
       const weeks = Number(dots.at(-1)?.dataset.w ?? 0) + 1;
-      replay.disabled = replaying = true;
+      lock(true);
       map!.classList.add('replay');
       let sum = 0;
       for (let w = 0; w < weeks; w++) {
@@ -128,27 +167,50 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
           c.classList.add('on');
           sum += days[Number(c.dataset.i)].n;
         }
-        if (totalEl) totalEl.textContent = sum.toLocaleString('en-IN');
-        if (cap) cap.textContent = `Week ${w + 1} of ${weeks}`;
+        say(`Week ${w + 1} of ${weeks}: ${sum.toLocaleString('en-IN')} contributions so far`);
         if (!reduce) await new Promise((r) => setTimeout(r, 45));
       }
       map!.classList.remove('replay');
       dots.forEach((c) => c.classList.remove('on'));
-      if (cap) cap.textContent = capText;
-      replay.disabled = replaying = false;
+      say(capText);
+      lock(false);
     });
 
+    // Pac-Man eats the year column by column; the score is the contributions on the days he eats.
+    pac?.addEventListener('click', async () => {
+      const svg = map?.querySelector('svg');
+      if (!svg) return;
+      lock(true);
+      map!.scrollLeft = 0;
+      const { score, ms } = await pacman(svg, days, (n) => {
+        say(`Score ${n.toLocaleString('en-IN')}`);
+        const head = svg.querySelector<SVGGElement>('.pac');
+        // Keep him in view when the map scrolls sideways on a phone.
+        if (head && map!.scrollWidth > map!.clientWidth) {
+          const x = head.getBoundingClientRect().left - map!.getBoundingClientRect().left;
+          if (x > map!.clientWidth * 0.6) map!.scrollLeft += x - map!.clientWidth * 0.6;
+        }
+      });
+      say(`Game over. Pac-Man ate ${score.toLocaleString('en-IN')} contributions from ${yearName()} in ${(ms / 1000).toFixed(1)} s.`);
+      lock(false);
+    });
+
+    // Filters hide PRs, and a repo with none left hides too.
     function applyFilter() {
       if (!list) return;
-      const rows = [...list.children] as HTMLElement[];
-      const match = rows.filter((r) => filter === 'all' || r.dataset.state === filter);
-      rows.forEach((r) => (r.hidden = true));
-      match.forEach((r, i) => (r.hidden = !open && i >= SHOWN));
-      if (more) {
-        more.hidden = match.length <= SHOWN;
-        more.setAttribute('aria-expanded', String(open));
-        more.querySelector('span')!.textContent = open ? 'Show fewer' : `Show all ${match.length}`;
-      }
+      let shown = 0;
+      list.querySelectorAll<HTMLElement>('[data-repo]').forEach((card) => {
+        let any = false;
+        card.querySelectorAll<HTMLElement>('.track > li').forEach((r) => {
+          const m = filter === 'all' || r.dataset.state === filter;
+          r.hidden = !m;
+          any ||= m;
+        });
+        card.hidden = !any;
+        shown += Number(any);
+      });
+      const n = $('[data-repos]');
+      if (n) n.textContent = String(shown);
     }
     root.querySelectorAll<HTMLButtonElement>('[data-f]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -157,10 +219,6 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
         applyFilter();
       }),
     );
-    more?.addEventListener('click', () => {
-      open = !open;
-      applyFilter();
-    });
     applyFilter();
 
     const agoEl = $('[data-ago]');
@@ -174,7 +232,7 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
     setInterval(showAge, 6e4);
 
     function update(g: GitHubData) {
-      if (g.cals?.length && map && !replaying) {
+      if (g.cals?.length && map && !busy) {
         cals = g.cals;
         root!.dataset.cals = packCals(g.cals);
         showYear(year);
@@ -182,7 +240,7 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
       if (g.prs.length && list) {
         $('[data-pending]')?.remove();
         $('[data-prwrap]')!.hidden = false;
-        list.innerHTML = prRows(g.prs);
+        list.innerHTML = prGroups(g.prs);
         const counts: Record<string, number> = { all: g.prs.length, merged: 0, open: 0, closed: 0 };
         g.prs.forEach((p: PR) => counts[p.state]++);
         root!.querySelectorAll<HTMLElement>('[data-f]').forEach((b) => (b.querySelector('.n')!.textContent = String(counts[b.dataset.f!])));
@@ -205,15 +263,21 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
 <style>
   .activity {
     margin-bottom: 2.5rem;
-    padding: 1.1rem 1.25rem 0;
+    padding: 1.1rem 1.25rem 1rem;
   }
   .ahead {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 0.6rem 1rem;
+    gap: 0.7rem 1rem;
     margin-bottom: 0.9rem;
+  }
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
   }
   .cap {
     margin: 0.7rem 0 0;
@@ -248,6 +312,102 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
     color: inherit;
     opacity: 0.6;
   }
+
+  /* Colour sets. Light and dark get their own shades so the quiet days never vanish into the panel. */
+  [data-heat='ink'] {
+    --h1: color-mix(in srgb, var(--accent) 40%, var(--panel));
+    --h2: color-mix(in srgb, var(--accent) 62%, var(--panel));
+    --h3: color-mix(in srgb, var(--accent) 82%, var(--panel));
+    --h4: var(--accent);
+  }
+  [data-heat='grass'] {
+    --h1: #9be9a8;
+    --h2: #40c463;
+    --h3: #30a14e;
+    --h4: #216e39;
+  }
+  [data-heat='ember'] {
+    --h1: #fdcf8f;
+    --h2: #fb9a4b;
+    --h3: #ec5f2a;
+    --h4: #c22a1a;
+  }
+  [data-heat='ocean'] {
+    --h1: #a9dcf5;
+    --h2: #55b2e3;
+    --h3: #1d82c4;
+    --h4: #0b4c86;
+  }
+  [data-heat='candy'] {
+    --h1: #f6c2de;
+    --h2: #ee86bd;
+    --h3: #d64a98;
+    --h4: #95186a;
+  }
+  :global([data-theme='dark']) [data-heat='grass'] {
+    --h1: #0e4429;
+    --h2: #006d32;
+    --h3: #26a641;
+    --h4: #39d353;
+  }
+  :global([data-theme='dark']) [data-heat='ember'] {
+    --h1: #5a2610;
+    --h2: #a3431b;
+    --h3: #e7702b;
+    --h4: #ffb54d;
+  }
+  :global([data-theme='dark']) [data-heat='ocean'] {
+    --h1: #0c3552;
+    --h2: #0f6299;
+    --h3: #2b9de2;
+    --h4: #8ed6ff;
+  }
+  :global([data-theme='dark']) [data-heat='candy'] {
+    --h1: #4c1636;
+    --h2: #8c2566;
+    --h3: #d2489b;
+    --h4: #ff9cd6;
+  }
+  .heat {
+    display: flex;
+    gap: 0.25rem;
+    margin-right: 0.3rem;
+  }
+  .heat button {
+    display: grid;
+    grid-template-columns: repeat(2, 5px);
+    gap: 2px;
+    padding: 5px;
+    border: 1px solid transparent;
+  }
+  .heat button:hover {
+    border-color: var(--edge);
+  }
+  .heat button[aria-pressed='true'] {
+    border-color: var(--fg);
+  }
+  .heat i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--h1);
+  }
+  .heat i:nth-child(2) {
+    background: var(--h2);
+  }
+  .heat i:nth-child(3) {
+    background: var(--h3);
+  }
+  .heat i:nth-child(4) {
+    background: var(--h4);
+  }
+  .pacbtn {
+    gap: 0.45rem;
+  }
+  .pacbtn svg {
+    color: #e8b400;
+  }
+
   /* On a phone the year keeps a readable size and scrolls sideways, starting at the latest weeks. */
   .map {
     overflow-x: auto;
@@ -264,15 +424,23 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
     fill: var(--faint);
   }
   .map :global(circle) {
-    fill: var(--accent);
-    transition: opacity 0.15s;
+    transition: opacity 0.15s, fill 0.3s;
   }
   .map :global(circle.l0) {
     fill: var(--faint);
     opacity: 0.4;
   }
   .map :global(circle.l1) {
-    opacity: 0.7;
+    fill: var(--h1);
+  }
+  .map :global(circle.l2) {
+    fill: var(--h2);
+  }
+  .map :global(circle.l3) {
+    fill: var(--h3);
+  }
+  .map :global(circle.l4) {
+    fill: var(--h4);
   }
   .map :global(circle:hover) {
     fill: var(--fg);
@@ -281,28 +449,11 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
   .map:global(.replay) :global(circle:not(.on)) {
     opacity: 0;
   }
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    margin: 1.1rem -1.25rem 0;
-    border-top: 1px solid var(--edge);
+  .map :global(circle.eaten) {
+    opacity: 0;
+    transition: none;
   }
-  .stats :global(div) {
-    padding: 0.8rem 1.25rem 0.9rem;
-    min-width: 0;
-  }
-  .stats :global(div + div) {
-    border-left: 1px solid var(--edge);
-  }
-  .stats :global(dt) {
-    font-size: 0.68rem;
-    color: var(--faint);
-  }
-  .stats :global(dd) {
-    margin: 0.25rem 0 0;
-    font-size: 0.86rem;
-    color: var(--fg);
-  }
+
   .prhead {
     display: flex;
     flex-wrap: wrap;
@@ -338,96 +489,133 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
     margin: 0;
     color: var(--faint);
   }
+
+  /* One card per repo, flowing into two columns. */
   .prs {
     margin: 0;
     padding: 0;
     list-style: none;
+    columns: 2 24rem;
+    column-gap: 1rem;
+  }
+  .prs :global(.repo) {
+    break-inside: avoid;
+    margin-bottom: 1rem;
     border: 1px solid var(--edge);
     background: var(--panel);
   }
-  .prs :global(li) {
-    position: relative;
-    display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1fr);
-  }
-  .prs :global(li[hidden]) {
+  .prs :global([hidden]) {
     display: none;
   }
-  .prs :global(li + li) {
-    border-top: 1px solid var(--line);
+  .prs :global(.rh) {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 0.1rem 0.8rem;
+    align-items: center;
+    padding: 0.9rem 1.1rem 0.6rem;
   }
-  /* The branch drawing on the left of each row. */
-  .prs :global(.graph) {
+  .prs :global(.rh img) {
+    grid-row: span 2;
+    border: 1px solid var(--edge);
+    background: var(--bg);
+  }
+  .prs :global(.name) {
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .prs :global(.name span) {
+    font-weight: 400;
+    color: var(--faint);
+  }
+  .prs :global(.name:hover) {
+    color: var(--accent);
+  }
+  .prs :global(.tally) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .prs :global(.bar) {
+    display: flex;
+    gap: 2px;
+    width: 3.2rem;
+    height: 4px;
+  }
+  .prs :global(.bar i) {
+    background: var(--ok);
+  }
+  .prs :global(.bar .pend) {
+    background: var(--pend);
+  }
+  .prs :global(.bar .fail) {
+    background: var(--fail);
+  }
+
+  /* The repo's line, with a stop for each PR. */
+  .prs :global(.track) {
     position: relative;
-    margin-left: 0.5rem;
+    margin: 0;
+    padding: 0 0 0.5rem;
+    list-style: none;
   }
-  .prs :global(.graph svg) {
+  .prs :global(.track)::before {
+    content: '';
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
+    left: calc(1.1rem + 4.25px);
+    top: 0.2rem;
+    bottom: 1.4rem;
+    width: 1.5px;
+    background: var(--edge);
   }
-  .prs :global(.graph path) {
-    fill: none;
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-  }
-  .prs :global(.graph .main) {
-    stroke: var(--faint);
-  }
-  .prs :global(.graph .br) {
-    stroke: var(--c);
-  }
-  .prs :global(li) {
+  .prs :global(.track li) {
     --c: var(--ok);
   }
-  .prs :global(li[data-state='open']) {
+  .prs :global(.track li[data-state='open']) {
     --c: var(--pend);
   }
-  .prs :global(li[data-state='closed']) {
+  .prs :global(.track li[data-state='closed']) {
     --c: var(--fail);
   }
-  .prs :global(.node),
-  .prs :global(.join) {
-    position: absolute;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    translate: -50% -50%;
+  .prs :global(.track a) {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr);
+    gap: 0.1rem 0.9rem;
+    padding: 0.45rem 1.1rem;
+    transition: background 0.2s;
   }
-  .prs :global(.node) {
-    left: calc(26 / 36 * 100%);
-    top: 50%;
+  .prs :global(.track a:hover) {
+    background: var(--accent-soft);
+  }
+  .prs :global(.stop) {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    margin-top: 0.42em;
+    border-radius: 50%;
     background: var(--c);
   }
-  .prs :global(.join) {
-    left: calc(8 / 36 * 100%);
-    top: 0;
-    width: 7px;
-    height: 7px;
-    background: var(--panel);
-    border: 1.5px solid var(--ok);
-  }
-  .prs :global(li[data-state='open'] .node) {
+  .prs :global(li[data-state='open'] .stop) {
     background: var(--panel);
     border: 2px solid var(--c);
     animation: wait 2s ease-in-out infinite;
   }
-  .prs :global(li[data-state='closed'] .node) {
+  .prs :global(li[data-state='closed'] .stop) {
     border-radius: 0;
-    background: none;
+    background: var(--panel);
     rotate: 45deg;
   }
-  .prs :global(li[data-state='closed'] .node)::before,
-  .prs :global(li[data-state='closed'] .node)::after {
+  .prs :global(li[data-state='closed'] .stop)::before,
+  .prs :global(li[data-state='closed'] .stop)::after {
     content: '';
     position: absolute;
-    inset: 3.5px 0;
+    inset: 4px 0;
     background: var(--c);
   }
-  .prs :global(li[data-state='closed'] .node)::after {
-    inset: 0 3.5px;
+  .prs :global(li[data-state='closed'] .stop)::after {
+    inset: 0 4px;
   }
   @keyframes wait {
     50% {
@@ -435,103 +623,25 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .prs :global(.node) {
+    .prs :global(.stop) {
       animation: none !important;
     }
   }
-  .prs :global(a) {
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr) auto;
-    gap: 0.9rem;
-    align-items: center;
-    padding: 0.85rem 1rem 0.85rem 0.5rem;
-    transition: background 0.2s;
-  }
-  .prs :global(a:hover) {
-    background: var(--accent-soft);
-  }
-  .prs :global(img) {
-    border: 1px solid var(--edge);
-    background: var(--bg);
-  }
-  .prs :global(.main) {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  .prs :global(.repo) {
-    color: var(--muted);
-  }
-  .prs :global(.num),
-  .prs :global(.when) {
-    color: var(--faint);
-  }
-  .prs :global(.when) {
-    margin-left: 0.4rem;
-  }
-  .prs :global(.title) {
-    font-size: 0.97rem;
+  .prs :global(.t) {
+    font-size: 0.95rem;
     font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.4;
   }
-  .prs :global(a:hover .title) {
+  .prs :global(.track a:hover .t) {
     color: var(--accent);
   }
-  .prs :global(.side) {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.2rem;
-  }
-  .prs :global(.state) {
-    padding: 0.05rem 0.45rem;
-    border: 1px solid currentColor;
-    font-size: 0.66rem;
-    color: var(--c);
-  }
-  .prs :global(.date) {
-    color: var(--faint);
+  .prs :global(.m) {
+    grid-column: 2;
     font-size: 0.68rem;
+    color: var(--faint);
   }
-  .showall {
-    margin-top: 1rem;
-    background: var(--panel);
-  }
-  .showall svg {
-    transition: rotate 0.2s var(--ease);
-  }
-  .showall[aria-expanded='true'] svg {
-    rotate: 180deg;
-  }
-  @media (max-width: 860px) {
-    .stats {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    /* Total across the top, then two per row. */
-    .stats :global(div:first-child) {
-      grid-column: 1 / -1;
-    }
-    .stats :global(div + div) {
-      border-top: 1px solid var(--edge);
-    }
-    .stats :global(div:nth-child(even)) {
-      border-left: 0;
-    }
-  }
-  @media (max-width: 560px) {
-    .prs :global(a) {
-      grid-template-columns: 28px minmax(0, 1fr);
-    }
-    .prs :global(.side) {
-      grid-column: 2;
-      flex-direction: row;
-      align-items: center;
-      gap: 0.6rem;
-    }
-    .prs :global(.title) {
-      white-space: normal;
-    }
+  .prs :global(.num) {
+    margin-right: 0.3rem;
+    color: var(--muted);
   }
 </style>

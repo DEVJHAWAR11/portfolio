@@ -298,3 +298,54 @@ h3 {
     display: none !important;
   }
 }
+
+/* Chaos monkey (Konami code or dev.chaos()): a downed section greys out until its restart passes. */
+section.chaos {
+  position: relative;
+}
+section.chaos > :not(.pod) {
+  transition: opacity 0.35s, filter 0.35s;
+}
+section[data-pod='crash'] > :not(.pod) {
+  opacity: 0.3;
+  filter: grayscale(1);
+  animation: crash 0.22s 2;
+}
+section[data-pod='restart'] > :not(.pod) {
+  opacity: 0.6;
+  filter: grayscale(0.7) blur(1px);
+}
+.pod {
+  position: absolute;
+  top: 4.6rem;
+  left: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid currentColor;
+  background: var(--panel);
+  color: var(--fail);
+  font-size: 0.75rem;
+}
+#hello .pod {
+  top: 0.5rem;
+}
+section[data-pod='restart'] .pod {
+  color: var(--pend);
+}
+section[data-pod='up'] .pod {
+  color: var(--ok);
+}
+@keyframes crash {
+  33% {
+    translate: -6px 2px;
+  }
+  66% {
+    translate: 5px -2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  section[data-pod] > :not(.pod) {
+    animation: none;
+  }
+}

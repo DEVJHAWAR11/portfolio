@@ -1,6 +1,7 @@
 // A greeting for people who open DevTools, and a few commands on window.dev.
 import profile from '@/data/profile.json';
 import { loadStatus } from './status-client';
+import { chaos } from './chaos';
 
 const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2b37e6';
 console.log(
@@ -15,6 +16,7 @@ const help = {
   'dev.status()': 'live health of the demos',
   'dev.hire()': 'opens an email to me',
   'dev.links()': 'where else to find me',
+  'dev.chaos()': 'lets a chaos monkey loose on the page',
 };
 
 (window as unknown as { dev: object }).dev = {
@@ -33,4 +35,5 @@ const help = {
     return `Opening an email to ${profile.email}`;
   },
   links: () => console.table(Object.fromEntries(profile.links.map((l) => [l.label, l.href]))),
+  chaos: () => (chaos(), 'Chaos monkey released. Watch the page.'),
 };
