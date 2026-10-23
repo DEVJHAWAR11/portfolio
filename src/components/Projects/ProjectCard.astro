@@ -32,7 +32,7 @@ const href = `/projects/${p.id}`;
           src={shot}
           alt=""
           widths={[480, 800, 1200]}
-          sizes={big ? '(min-width: 1100px) 720px, 100vw' : '(min-width: 1100px) 600px, 100vw'}
+          sizes={big ? '(min-width: 1100px) 720px, (min-width: 761px) 60vw, calc(100vw - 2rem)' : '(min-width: 1100px) 600px, (min-width: 761px) 50vw, calc(100vw - 2rem)'}
           loading={eager ? 'eager' : 'lazy'}
           fetchpriority={eager ? 'high' : 'auto'}
         />

@@ -1,0 +1,455 @@
+---
+// A small terminal for the site. Everything it prints comes from the same data as the rest of the site.
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import profile from '@/data/profile.json';
+import { getPRs } from '@/lib/github';
+import { getPosts } from '@/lib/devto';
+
+const projects = (await getCollection('projects'))
+  .sort((a, b) => a.data.order - b.data.order)
+  .map((p) => ({ id: p.id, title: p.data.title, tagline: p.data.tagline, featured: p.data.featured, stack: p.data.stack, highlights: p.data.highlights, links: p.data.links }));
+const [prs, posts] = await Promise.all([getPRs(), getPosts()]);
+const data = {
+  profile: { name: profile.name, role: profile.role, location: profile.location, email: profile.email, resume: profile.resume, links: profile.links },
+  projects,
+  prs: prs.map((p) => ({ title: p.title, repo: p.repo, number: p.number, state: p.state, url: p.url })),
+  posts: posts.slice(0, 8).map((p) => ({ title: p.title, url: p.url, minutes: p.minutes })),
+};
+const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
+---
+
+<Base title="Terminal, by Dev Jhawar" description="A small terminal for this site: projects, pull requests, posts and how to reach me, as commands.">
+  <article>
+    <a href="/" class="mono back">← Home</a>
+    <header class="head">
+      <h1>Terminal</h1>
+      <p>The whole site as commands. Type <code>help</code> to start, or tap one below.</p>
+    </header>
+
+    <div class="term mono" data-term data-cli={JSON.stringify(data)}>
+      <div class="out" data-out aria-live="polite"></div>
+      <form data-form autocomplete="off">
+        <label for="cli-in"><span class="who">visitor@devjhawar</span>:<span class="dir">~</span>$</label>
+        <input id="cli-in" name="cmd" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go" aria-label="Command" />
+      </form>
+    </div>
+    <div class="chips" role="group" aria-label="Quick commands">
+      {chips.map((c) => <button type="button" class="mono" data-run={c}>{c}</button>)}
+    </div>
+  </article>
+</Base>
+
+<script>
+  import { sfx, soundOn, setSound } from '@/lib/sfx';
+  import { unlock } from '@/lib/eggs';
+  import { loadStatus, describe } from '@/lib/status-client';
+
+  type Link = { label: string; href: string; handle?: string };
+  type Project = { id: string; title: string; tagline: string; featured: boolean; stack: string[]; highlights: string[]; links: Record<string, string | undefined> };
+  type Data = {
+    profile: { name: string; role: string; location: string; email: string; resume: string; links: Link[] };
+    projects: Project[];
+    prs: { title: string; repo: string; number: number; state: string; url: string }[];
+    posts: { title: string; url: string; minutes: number }[];
+  };
+
+  const term = document.querySelector<HTMLElement>('[data-term]')!;
+  const out = term.querySelector<HTMLElement>('[data-out]')!;
+  const form = term.querySelector<HTMLFormElement>('[data-form]')!;
+  const input = form.querySelector('input')!;
+  const D: Data = JSON.parse(term.dataset.cli!);
+  const P = D.profile;
+  const history: string[] = [];
+  let at = 0;
+
+  // Output helpers. Text always goes in as text; only `a()` makes a link.
+  type Part = string | HTMLElement;
+  const print = (...parts: Part[]) => {
+    const p = document.createElement('p');
+    p.append(...parts);
+    out.append(p);
+    return p;
+  };
+  const dim = (t: string) => Object.assign(document.createElement('span'), { className: 'dim', textContent: t });
+  const hi = (t: string) => Object.assign(document.createElement('span'), { className: 'hi', textContent: t });
+  const a = (t: string, href: string) => {
+    const l = Object.assign(document.createElement('a'), { textContent: t, href });
+    if (/^https?:/.test(href)) Object.assign(l, { target: '_blank', rel: 'noopener' });
+    return l;
+  };
+  const rows = (pairs: [string, Part][], w = 12) => pairs.forEach(([k, v]) => print(hi(k.padEnd(w)), v));
+  const go = (href: string) => (/^https?:|^mailto:/.test(href) ? window.open(href, href.startsWith('mailto:') ? '_self' : '_blank', 'noopener') : (location.href = href));
+  const findProject = (q: string) => D.projects.find((p) => p.id === q || p.title.toLowerCase() === q.toLowerCase() || p.id.startsWith(q.toLowerCase()));
+  const findLink = (q: string) => P.links.find((l) => l.label.toLowerCase().replace(/[^a-z]/g, '') === q.toLowerCase().replace(/[^a-z]/g, ''));
+
+  const cmds: Record<string, { help?: string; run: (args: string[]) => void | Promise<void> }> = {
+    help: {
+      help: 'this list',
+      run: () => Object.entries(cmds).forEach(([k, c]) => c.help && print(hi(k.padEnd(14)), dim(c.help))),
+    },
+    whoami: {
+      help: 'who I am',
+      run: () => {
+        print(hi(P.name));
+        print(P.role);
+        print(dim(`Final-year CS at KIIT. ${P.location}.`));
+      },
+    },
+    neofetch: {
+      help: 'the usual',
+      run: () => {
+        const box = document.createElement('pre');
+        box.className = 'logo';
+        box.setAttribute('aria-hidden', 'true');
+        box.innerHTML = '██████\n██████\n███<i>███</i>\n███<i>███</i>';
+        const info = document.createElement('div');
+        const kv: [string, string][] = [
+          ['host', 'devjhawar.com'],
+          ['os', 'Astro, static, on Vercel'],
+          ['shell', 'this page'],
+          ['location', P.location],
+          ['projects', String(D.projects.length)],
+          ['prs', `${D.prs.length} upstream, ${D.prs.filter((p) => p.state === 'merged').length} merged`],
+          ['posts', String(D.posts.length)],
+          ['uptime', 'since the coffee kicked in'],
+        ];
+        info.append(Object.assign(document.createElement('p'), { className: 'hi', textContent: `visitor@devjhawar` }));
+        for (const [k, v] of kv) {
+          const p = document.createElement('p');
+          p.append(hi(`${k}: `), v);
+          info.append(p);
+        }
+        const wrap = document.createElement('div');
+        wrap.className = 'neo';
+        wrap.append(box, info);
+        out.append(wrap);
+      },
+    },
+    ls: {
+      help: 'ls projects | prs | posts | links',
+      run: ([what]) => {
+        if (!what) return print(['projects/', 'prs/', 'posts/', 'links/'].map((d) => d.padEnd(11)).join(''), dim('secrets.log'));
+        const sub = cmds[what.replace(/\/$/, '')];
+        if (what.startsWith('secrets')) return print('secrets.log');
+        if (!sub || !['projects', 'prs', 'posts', 'links'].includes(what.replace(/\/$/, ''))) return print(`ls: ${what}: No such directory`);
+        sub.run([]);
+      },
+    },
+    projects: {
+      run: () => {
+        for (const p of D.projects) print(hi(p.id.padEnd(30)), p.tagline);
+        print(dim('cat <name> for details, open <name> for the page.'));
+      },
+    },
+    cat: {
+      help: 'cat <project> | secrets.log',
+      run: ([q]) => {
+        if (!q) return print('cat: which one? Try ls projects.');
+        if (q.startsWith('secrets')) {
+          print('cat: secrets.log: Permission denied');
+          return void print(dim('Only the logo can open it. Click it five times on the home page.'));
+        }
+        const p = findProject(q);
+        if (!p) return void print(`cat: ${q}: No such project. Try ls projects.`);
+        print(hi(p.title));
+        print(p.tagline);
+        print(dim(p.stack.join(', ')));
+        for (const h of p.highlights) print(dim('- '), h);
+        print(a(`/projects/${p.id}`, `/projects/${p.id}`), p.links.github ? '  ' : '', p.links.github ? a('source', p.links.github) : '', p.links.live ? '  ' : '', p.links.live ? a('live', p.links.live) : '');
+      },
+    },
+    open: {
+      help: 'open <project | github | linkedin | x | resume>',
+      run: ([q]) => {
+        if (!q) return void print('open: what? A project name, github, linkedin, x, dev.to or resume.');
+        if (q === 'resume' || q === 'cv') return void (print('Opening the résumé…'), go(P.resume));
+        const l = findLink(q);
+        if (l) return void (print(`Opening ${l.label}…`), go(l.href));
+        const p = findProject(q);
+        if (p) return void (print(`Opening ${p.title}…`), go(`/projects/${p.id}`));
+        print(`open: ${q}: not found`);
+      },
+    },
+    prs: {
+      help: 'pull requests to other projects',
+      run: () => {
+        for (const p of D.prs.slice(0, 12)) print(hi(p.state.padEnd(7)), a(`${p.repo}#${p.number}`, p.url), ' ', dim(p.title));
+        if (D.prs.length > 12) print(dim(`and ${D.prs.length - 12} more on the home page.`));
+      },
+    },
+    posts: {
+      help: 'what I wrote',
+      run: () => D.posts.forEach((p) => print(a(p.title, p.url), dim(`  ${p.minutes} min`))),
+    },
+    links: {
+      help: 'where else to find me',
+      run: () => rows(P.links.map((l) => [l.label, a(l.handle ?? l.href, l.href)])),
+    },
+    contact: {
+      help: 'how to reach me',
+      run: () => {
+        rows([
+          ['email', a(P.email, `mailto:${P.email}`)],
+          ['resume', a('open', P.resume)],
+        ]);
+        print(dim('Or try: sudo hire dev'));
+      },
+    },
+    status: {
+      help: 'are the demos up?',
+      run: async () => {
+        print(dim('checking…'));
+        const s = await loadStatus();
+        if (!s) return void print('status: unavailable right now');
+        for (const r of s.services) print(hi(r.id.padEnd(26)), describe(r));
+      },
+    },
+    date: { run: () => void print(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', dateStyle: 'full', timeStyle: 'medium' }).format(new Date()), ' IST') },
+    echo: { run: (args) => void print(args.join(' ')) },
+    pwd: { run: () => void print('/home/visitor') },
+    cd: { run: () => void print("There's only one directory here, and you're already in it.") },
+    theme: {
+      help: 'switch light and dark',
+      run: () => {
+        document.getElementById('theme-toggle')?.click();
+        print(`Theme: ${document.documentElement.dataset.theme}`);
+      },
+    },
+    sound: {
+      help: 'sound on | off',
+      run: ([v]) => {
+        setSound(v ? v !== 'off' : !soundOn());
+        print(`Sounds ${soundOn() ? 'on' : 'off'}`);
+      },
+    },
+    sudo: {
+      help: 'sudo hire dev, sudo chaos',
+      run: (args) => {
+        const s = args.join(' ');
+        if (s === 'hire dev' || s === 'hire me') {
+          print(hi('[sudo] '), 'Permission granted.');
+          print('Opening an email to ', a(P.email, `mailto:${P.email}`), '…');
+          return void setTimeout(() => go(`mailto:${P.email}?subject=${encodeURIComponent('sudo hire dev')}`), 700);
+        }
+        if (s === 'chaos') {
+          print('Releasing the chaos monkey on the home page…');
+          return void setTimeout(() => (location.href = '/?chaos'), 700);
+        }
+        if (s.startsWith('rm')) return void print('Not today.');
+        print(`visitor is not in the sudoers file. This incident will be reported to Dev's inbox.`);
+      },
+    },
+    rm: { run: () => void print('Not today.') },
+    history: { run: () => history.forEach((h, i) => print(dim(String(i + 1).padStart(3) + '  '), h)) },
+    clear: { help: 'clear the screen', run: () => void out.replaceChildren() },
+    exit: { help: 'back to the home page', run: () => void (location.href = '/') },
+  };
+  cmds.about = cmds.whoami;
+  cmds.mail = cmds.contact;
+  cmds.resume = { run: () => cmds.open.run(['resume']) };
+
+  async function exec(line: string) {
+    const raw = line.trim();
+    const echo = print(dim('$ '), raw);
+    echo.className = 'cmd';
+    if (!raw) return;
+    history.push(raw);
+    at = history.length;
+    const [name, ...args] = raw.split(/\s+/);
+    const c = cmds[name.toLowerCase()];
+    sfx.line();
+    if (c) {
+      unlock('cli');
+      await c.run(args);
+    } else print(`command not found: ${name}. Type help.`);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = input.value;
+    input.value = '';
+    exec(v);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      at = Math.max(0, Math.min(history.length, at + (e.key === 'ArrowUp' ? -1 : 1)));
+      input.value = history[at] ?? '';
+    } else if (e.key === 'Tab') {
+      // Complete a command, or a project after cat/open.
+      const parts = input.value.split(' ');
+      const last = parts.at(-1)!.toLowerCase();
+      if (!last) return;
+      const pool = parts.length === 1 ? Object.keys(cmds) : D.projects.map((p) => p.id).concat(P.links.map((l) => l.label.toLowerCase()));
+      const hit = pool.filter((x) => x.startsWith(last));
+      e.preventDefault();
+      if (hit.length === 1) parts[parts.length - 1] = hit[0] + (parts.length === 1 ? ' ' : '');
+      else if (hit.length > 1) print(dim(hit.join('  ')));
+      input.value = parts.join(' ');
+    } else if (e.key === 'l' && e.ctrlKey) {
+      e.preventDefault();
+      out.replaceChildren();
+    }
+  });
+  term.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('a') && !getSelection()?.toString()) input.focus({ preventScroll: true });
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) => b.addEventListener('click', () => exec(b.dataset.run!)));
+
+  print(hi(`${P.name}`), dim(' · devjhawar.com terminal'));
+  print(dim('Type help and press Enter. Tab completes, ↑ and ↓ go through history.'));
+  if (matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
+</script>
+
+<style>
+  article {
+    width: min(var(--w), 100% - 2 * var(--gutter));
+    margin: 0 auto;
+    padding-top: 7rem;
+  }
+  .back {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .back:hover {
+    color: var(--accent);
+  }
+  .head {
+    margin: 1.5rem 0 1.5rem;
+  }
+  h1 {
+    margin: 0 0 0.4rem;
+    font: 800 clamp(2.4rem, 7vw, 4rem) / 1 var(--display);
+    font-stretch: 80%;
+    letter-spacing: -0.02em;
+  }
+  .head p {
+    margin: 0;
+    color: var(--muted);
+  }
+  code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: var(--fg);
+  }
+  .term {
+    border: 1px solid var(--fg);
+    background: var(--panel);
+    box-shadow: 6px 6px 0 color-mix(in srgb, var(--fg) 12%, transparent);
+    font-size: 0.82rem;
+    line-height: 1.55;
+    cursor: text;
+  }
+  .out {
+    height: min(60vh, 32rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1rem 1.1rem 0.4rem;
+  }
+  .out :global(p) {
+    margin: 0 0 0.15rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .out :global(.cmd) {
+    margin-top: 0.7rem;
+    color: var(--fg);
+  }
+  .out :global(.dim) {
+    color: var(--muted);
+  }
+  .out :global(.hi) {
+    color: var(--accent);
+    font-weight: 600;
+    white-space: pre;
+  }
+  .out :global(a) {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--edge);
+  }
+  .out :global(a:hover) {
+    color: var(--accent);
+    text-decoration-color: currentColor;
+  }
+  .out :global(.neo) {
+    display: flex;
+    gap: 1.4rem;
+    margin: 0.4rem 0;
+  }
+  .out :global(.logo) {
+    margin: 0.2rem 0 0;
+    font: inherit;
+    line-height: 1.05;
+    color: var(--fg);
+  }
+  .out :global(.logo i) {
+    font-style: normal;
+    color: var(--accent);
+  }
+  form {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.1rem 0.8rem;
+    border-top: 1px dashed var(--edge);
+  }
+  label {
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .who {
+    color: var(--ok);
+  }
+  .dir {
+    color: var(--accent);
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.2rem 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: max(16px, 1em);
+    color: var(--fg);
+    caret-color: var(--accent);
+    outline: none;
+  }
+  .term:focus-within {
+    border-color: var(--accent);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1rem;
+  }
+  .chips button {
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+  .chips button:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  @media (max-width: 560px) {
+    .term {
+      font-size: 0.74rem;
+    }
+    .out {
+      padding: 0.8rem 0.8rem 0.3rem;
+    }
+    form {
+      padding: 0.5rem 0.8rem 0.7rem;
+    }
+    .who {
+      display: none;
+    }
+  }
+</style>

@@ -50,11 +50,11 @@ const palettes = [
               <button type="button" class="btn sm" data-replay>
                 Replay
               </button>
-              <button type="button" class="btn sm pacbtn" data-pac>
+              <button type="button" class="btn sm pacbtn" data-pac aria-label="Play Pac-Man">
               <svg viewBox="-6 -6 12 12" width="13" height="13" aria-hidden="true">
                 <path d="M0 0 L4.6 2.7 A5.3 5.3 0 1 1 4.6 -2.7 Z" fill="currentColor" />
               </svg>
-                <span class="w">Play</span> Pac-Man
+                <span class="w">Play</span> <span class="t">Pac-Man</span>
               </button>
             </div>
           </div>
@@ -91,6 +91,7 @@ const palettes = [
 <script>
   import { heatmap, prGroups, packCals, unpackCals, dayLabel, total } from '@/lib/oss-render';
   import { pacman } from '@/lib/pacman';
+  import { unlock } from '@/lib/eggs';
   import type { Cal, Day, GitHubData, PR } from '@/lib/github';
 
   const root = document.querySelector<HTMLElement>('[data-oss]');
@@ -109,7 +110,14 @@ const palettes = [
     let cals: Cal[] = unpackCals(root.dataset.cals!);
     let year = cals[0]?.id;
     let days: Day[] = cals[0]?.days ?? [];
-    if (map) map.scrollLeft = map.scrollWidth;
+    // On a phone the map scrolls sideways; start at today. Done once it's on screen, so loading the page
+    // doesn't force a layout of this whole section while it's still out of view.
+    if (map)
+      new IntersectionObserver((seen, io) => {
+        if (!seen[0].isIntersecting) return;
+        io.disconnect();
+        map.scrollLeft = map.scrollWidth;
+      }).observe(map);
     const yearName = () => (year === 'past' ? 'the past year' : year);
 
     function showYear(id: string) {
@@ -176,6 +184,7 @@ const palettes = [
       dots.forEach((c) => c.classList.remove('on'));
       say(capText);
       lock(false);
+      unlock('pacman');
     });
 
     // Pac-Man eats the year column by column; the score is the contributions on the days he eats.
@@ -234,7 +243,7 @@ const palettes = [
     setInterval(showAge, 6e4);
 
     function update(g: GitHubData) {
-      if (g.cals?.length && map && !busy) {
+      if (g.cals?.length && map && !busy && packCals(g.cals) !== root!.dataset.cals) {
         cals = g.cals;
         root!.dataset.cals = packCals(g.cals);
         showYear(year);
@@ -242,7 +251,9 @@ const palettes = [
       if (g.prs.length && list) {
         $('[data-pending]')?.remove();
         $('[data-prwrap]')!.hidden = false;
-        list.innerHTML = prGroups(g.prs);
+        const next = document.createElement('template');
+        next.innerHTML = prGroups(g.prs);
+        if (next.innerHTML !== list.innerHTML) list.innerHTML = next.innerHTML;
         const counts: Record<string, number> = { all: g.prs.length, merged: 0, open: 0, closed: 0 };
         g.prs.forEach((p: PR) => counts[p.state]++);
         root!.querySelectorAll<HTMLElement>('[data-f]').forEach((b) => (b.querySelector('.n')!.textContent = String(counts[b.dataset.f!])));
@@ -295,9 +306,6 @@ const palettes = [
       gap: 0;
       margin-right: 0;
     }
-    .acts .heat button {
-      padding: 4px;
-    }
     .play {
       gap: 0.4rem;
     }
@@ -309,10 +317,7 @@ const palettes = [
     }
   }
   @media (max-width: 360px) {
-    .acts .heat button {
-      padding: 3px;
-    }
-    .pacbtn svg {
+    .pacbtn .t {
       display: none;
     }
   }
@@ -512,6 +517,7 @@ const palettes = [
   }
   .filters .chip {
     display: inline-flex;
+    min-height: 1.6rem;
     align-items: center;
     gap: 0.4rem;
     background: var(--panel);
@@ -527,7 +533,10 @@ const palettes = [
     color: var(--bg);
   }
   .filters .n {
-    opacity: 0.65;
+    color: var(--muted);
+  }
+  .filters .chip[aria-pressed='true'] .n {
+    color: inherit;
   }
   .checked {
     margin: 0;

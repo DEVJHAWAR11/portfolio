@@ -1,5 +1,7 @@
 // Konami code (↑ ↑ ↓ ↓ ← → ← → B A), or dev.chaos() in the console: a chaos monkey takes down every section,
 // and each one restarts on its own, like pods in CrashLoopBackOff coming back after their health checks pass.
+import { unlock } from './eggs';
+
 const CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let running = false;
@@ -43,8 +45,15 @@ export async function chaos() {
     }),
   );
   running = false;
+  unlock('chaos');
   console.log(`Chaos test passed: ${pods.length} of ${pods.length} sections recovered.`);
   return 'Chaos started.';
+}
+
+// The terminal's `sudo chaos` lands here as /?chaos.
+if (new URLSearchParams(location.search).has('chaos') && document.querySelector('main section[id]')) {
+  history.replaceState(null, '', location.pathname + location.hash);
+  setTimeout(chaos, 600);
 }
 
 let i = 0;

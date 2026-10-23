@@ -86,6 +86,8 @@ export const sfx = {
   close: () => tone(560, 140, { vol: 0.14, to: 300 }),
   // A line of text arriving: a soft keyboard tap.
   line: () => click(3200, 0.45, 20),
+  // Three bright notes for finding an easter egg.
+  unlock: () => [784, 988, 1319].forEach((f, i) => tone(f, 160, { vol: 0.13, at: i * 85 })),
   // Pac-Man's bite.
   chomp: () => tone(440, 70, { type: 'square', vol: 0.05, to: 180 }),
   toggle: () => {

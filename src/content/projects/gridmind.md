@@ -12,6 +12,11 @@ links:
 health: https://grid-mind-tan.vercel.app
 interaction: grid
 highlights: ["One LangGraph agent per cell: plan queries, search, read pages if snippets are thin, answer, retry at most twice", "Postgres is the job queue, claimed with FOR UPDATE SKIP LOCKED; stale locks over 180s are reclaimed", "Cited URLs are checked against the sources actually retrieved", "Frontend has a demo mode that runs fully in the browser with no backend"]
+hard: "Running a research agent in every spreadsheet cell on free-tier rate limits without losing or duplicating work. Postgres is the job queue: cells are claimed with FOR UPDATE SKIP LOCKED, stale locks are reclaimed after three minutes, and rate-limit errors back off. Every cited URL is checked against the sources the agent actually retrieved."
+numbers:
+  - { value: "~1", label: "LLM call per cell, by design", src: "https://github.com/DEVJHAWAR11/GridMind#readme" }
+  - { value: "2", label: "passes at most before a cell gives its best answer", src: "https://github.com/DEVJHAWAR11/GridMind#readme" }
+  - { value: "24", label: "tests, with the agent graph run against fakes", src: "https://github.com/DEVJHAWAR11/GridMind/tree/main/backend/tests" }
 diagram:
   nodes:
     - { id: ui, label: "Svelte 5 UI", role: "grid editor, trace drawer", col: 0, row: 1 }
