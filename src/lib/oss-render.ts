@@ -46,57 +46,7 @@ export function heatmap(days: Day[], label = 'the past year'): string {
   return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Contributions per day in ${esc(label)}">${months.join('')}${rows}${dots.join('')}</svg>`;
 }
 
-export interface Stats {
-  total: number;
-  longest: number;
-  current: number;
-  best?: Day;
-  active: number;
-}
-
 export const total = (days: Day[]) => days.reduce((n, d) => n + d.n, 0);
-
-export function stats(days: Day[]): Stats {
-  let run = 0;
-  let longest = 0;
-  let best: Day | undefined;
-  for (const d of days) {
-    run = d.n > 0 ? run + 1 : 0;
-    longest = Math.max(longest, run);
-    if (!best || d.n > best.n) best = d;
-  }
-  // Today may simply not have a commit yet, so the current streak can end yesterday.
-  let i = days.length - 1;
-  if (i >= 0 && days[i].n === 0) i--;
-  let current = 0;
-  while (i >= 0 && days[i].n > 0) {
-    current++;
-    i--;
-  }
-  return { total: total(days), longest, current, best: best?.n ? best : undefined, active: days.filter((d) => d.n > 0).length };
-}
-
-function busiestMonth(days: Day[]) {
-  const by = new Map<string, number>();
-  days.forEach((d) => by.set(d.d.slice(0, 7), (by.get(d.d.slice(0, 7)) ?? 0) + d.n));
-  const [m, n] = [...by].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
-  return n ? `${MONTHS[Number(m.slice(5)) - 1]}, ${n}` : 'none';
-}
-
-// A finished year has no current streak, so it shows its busiest month instead.
-export function statsList(days: Day[], live = true): string {
-  const s = stats(days);
-  const n = (v: number, unit: string) => `${v} ${unit}${v === 1 ? '' : 's'}`;
-  return [
-    ['Contributions', `<span data-total>${s.total.toLocaleString('en-IN')}</span>`],
-    ['Active days', `${s.active} of ${days.length}`],
-    ['Longest streak', n(s.longest, 'day')],
-    live ? ['Current streak', n(s.current, 'day')] : ['Busiest month', busiestMonth(days)],
-    ['Busiest day', s.best ? `${s.best.n} on ${date(s.best.d)}` : 'none yet'],
-  ]
-    .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`)
-    .join('');
-}
 
 /** Calendars packed small for the page: first date, one count per day, and the levels as a digit string. */
 export const packCals = (cals: Cal[]) =>
@@ -111,32 +61,47 @@ export function unpackCals(json: string): Cal[] {
 
 export const dayLabel = (d: Day) => `${d.n === 0 ? 'No' : d.n} contribution${d.n === 1 ? '' : 's'} on ${date(d.d)}`;
 
-// Each PR is drawn as a branch off main: merged ones join back in, open ones are still out, closed ones stop.
-const BRANCH = {
-  merged: 'M8 64 C8 46 26 48 26 32 C26 16 8 18 8 0',
-  open: 'M8 64 C8 46 26 48 26 32',
-  closed: 'M8 64 C8 46 26 48 26 32',
-};
-
+// PRs grouped by repo, busiest-recent repo first. Each repo is a short line of stops, one per PR:
+// filled when merged, hollow while in review, crossed out when closed.
 const days = (a: string, b: string) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 864e5));
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-export function prRows(prs: PR[]): string {
-  return prs
-    .map((p) => {
-      const owner = p.repo.split('/')[0];
-      const when =
-        p.state === 'merged' && p.closed
-          ? ((n) => (n === 0 ? 'merged the same day' : `merged in ${n} day${n === 1 ? '' : 's'}`))(days(p.created, p.closed))
-          : p.state === 'closed'
-            ? 'closed without merging'
-            : 'in review';
-      return `<li data-state="${p.state}">
-  <span class="graph" aria-hidden="true"><svg viewBox="0 0 36 64" preserveAspectRatio="none"><path class="main" d="M8 0V64"/><path class="br" d="${BRANCH[p.state]}"/></svg><i class="node"></i>${p.state === 'merged' ? '<i class="join"></i>' : ''}</span>
-  <a href="${esc(p.url)}" target="_blank" rel="noopener">
-    <img src="https://github.com/${esc(owner)}.png?size=64" alt="" width="32" height="32" loading="lazy" decoding="async">
-    <span class="main"><span class="mono repo">${esc(p.repo)} <span class="num">#${p.number}</span> <span class="when">${when}</span></span><span class="title">${esc(p.title)}</span></span>
-    <span class="side"><span class="state mono">${p.state}</span><span class="mono date">${date(p.created)}</span></span>
-  </a>
+export function prGroups(prs: PR[]): string {
+  const repos = new Map<string, PR[]>();
+  prs.forEach((p) => repos.set(p.repo, [...(repos.get(p.repo) ?? []), p]));
+  return [...repos]
+    .map(([repo, list]) => {
+      const [org, name] = repo.split('/');
+      const merged = list.filter((p) => p.state === 'merged').length;
+      const open = list.filter((p) => p.state === 'open').length;
+      const closed = list.length - merged - open;
+      const tally = [merged && `${merged} merged`, open && `${open} in review`, closed && `${closed} closed`].filter(Boolean).join(', ');
+      const bar = [
+        ['ok', merged],
+        ['pend', open],
+        ['fail', closed],
+      ]
+        .filter(([, n]) => n)
+        .map(([c, n]) => `<i class="${c}" style="flex:${n}"></i>`)
+        .join('');
+      const rows = list
+        .map((p) => {
+          const when =
+            p.state === 'merged' && p.closed
+              ? ((n) => (n === 0 ? 'merged the same day' : `merged in ${plural(n, 'day')}`))(days(p.created, p.closed))
+              : p.state === 'closed'
+                ? 'closed'
+                : 'in review';
+          return `<li data-state="${p.state}"><a href="${esc(p.url)}" target="_blank" rel="noopener"><i class="stop" aria-hidden="true"></i><span class="t">${esc(p.title)}</span><span class="mono m"><span class="num">#${p.number}</span> ${when}</span></a></li>`;
+        })
+        .join('');
+      return `<li class="repo" data-repo>
+  <div class="rh">
+    <img src="https://github.com/${esc(org)}.png?size=64" alt="" width="30" height="30" loading="lazy" decoding="async">
+    <a class="mono name" href="https://github.com/${esc(repo)}" target="_blank" rel="noopener"><span>${esc(org)}/</span>${esc(name)}</a>
+    <span class="tally"><span class="bar" aria-hidden="true">${bar}</span><span class="mono">${tally}</span></span>
+  </div>
+  <ol class="track">${rows}</ol>
 </li>`;
     })
     .join('');

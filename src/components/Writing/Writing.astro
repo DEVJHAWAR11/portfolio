@@ -14,7 +14,6 @@ const local = (await getCollection('posts', (p) => !p.data.draft)).map((p) => ({
   reactions: 0,
 }));
 const posts = [...remote, ...local].sort((a, b) => +new Date(b.date) - +new Date(a.date));
-const fmt = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 const week = 7 * 864e5;
 const buildTime = Date.now();
 ---
@@ -27,7 +26,6 @@ const buildTime = Date.now();
       {posts.map((p, i) => (
         <li data-reveal>
           <a href={p.url} target={p.url.startsWith('http') ? '_blank' : undefined} rel="noopener">
-            <span class="mono ts">{fmt.format(new Date(p.date))}</span>
             <span class="title">
               {p.title}
               {i === 0 && buildTime - +new Date(p.date) < week && <span class="mono new">new</span>}
@@ -55,7 +53,7 @@ const buildTime = Date.now();
   }
   a {
     display: grid;
-    grid-template-columns: 7rem 1fr auto;
+    grid-template-columns: 1fr auto;
     gap: 1rem;
     align-items: baseline;
     padding: 0.95rem 1.1rem;
@@ -63,9 +61,6 @@ const buildTime = Date.now();
   }
   a:hover {
     background: var(--accent-soft);
-  }
-  .ts {
-    color: var(--faint);
   }
   .title {
     font: 700 1.12rem/1.3 var(--display);
@@ -88,14 +83,8 @@ const buildTime = Date.now();
   }
   @media (max-width: 640px) {
     a {
-      grid-template-columns: auto 1fr;
-      gap: 0.2rem 0.75rem;
-    }
-    .title {
-      grid-column: 1 / -1;
-    }
-    .meta {
-      grid-column: 1 / -1;
+      grid-template-columns: 1fr;
+      gap: 0.2rem;
     }
   }
 </style>

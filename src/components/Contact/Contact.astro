@@ -7,7 +7,6 @@ const icons: Record<string, string> = {
   LinkedIn: 'linkedin',
   X: 'x',
   'dev.to': 'devdotto',
-  Telegram: 'telegram',
   LeetCode: 'leetcode',
   Codeforces: 'codeforces',
 };
@@ -51,28 +50,11 @@ const icons: Record<string, string> = {
         }
       </ul>
     </details>
-    <button class="btn copy" type="button" data-copy={profile.email}>
-      <span class="addr">{profile.email}</span>
-      <span class="mono status" aria-live="polite">Copy</span>
-    </button>
     <a class="btn" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
   </div>
 </div>
 
 <script>
-  document.querySelectorAll<HTMLElement>('button[data-copy]').forEach((b) => {
-    const status = b.querySelector('.status')!;
-    b.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(b.dataset.copy!);
-        status.textContent = 'Copied';
-      } catch {
-        status.textContent = 'Select it instead';
-      }
-      setTimeout(() => (status.textContent = 'Copy'), 2000);
-    });
-  });
-
   // Close the dropdown on outside click or Escape.
   document.querySelectorAll<HTMLDetailsElement>('[data-dd]').forEach((dd) => {
     document.addEventListener('click', (e) => {
@@ -175,23 +157,10 @@ const icons: Record<string, string> = {
   .menu a:focus-visible .h {
     color: inherit;
   }
-  .copy {
-    gap: 0.8rem;
-  }
-  .status {
-    padding-left: 0.8rem;
-    border-left: 1px solid currentColor;
-    font-weight: 400;
-  }
   @media (max-width: 560px) {
     .menu {
       min-width: 0;
       width: calc(100vw - 2 * var(--gutter) - 3rem);
-    }
-    .addr {
-      max-width: 13rem;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
   }
 </style>

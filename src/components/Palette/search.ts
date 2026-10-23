@@ -7,7 +7,7 @@ export interface Doc {
   t: string; // title
   s: string; // one line under the title
   h?: string; // where it goes
-  a?: 'copy-email' | 'theme'; // or what it does
+  a?: 'theme'; // or what it does
   x?: string; // extra words to match on, not shown
   pin?: boolean; // listed before anything is typed
 }
