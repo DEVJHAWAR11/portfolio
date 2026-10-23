@@ -1,0 +1,178 @@
+---
+// A row of screenshots under a case study's cover. Each thumbnail links to the full image, and with JS it
+// opens in a lightbox instead, with arrow keys to step through and Escape to close.
+import { Image, getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+  slug: string;
+  title: string;
+  items: { file: string; caption: string }[];
+}
+const { slug, title, items } = Astro.props;
+
+const files = import.meta.glob<{ default: ImageMetadata }>('/src/assets/projects/*/*.{png,jpg,jpeg,webp}', { eager: true });
+const shots = await Promise.all(
+  items.map(async ({ file, caption }) => {
+    const src = files[`/src/assets/projects/${slug}/${file}`]?.default;
+    if (!src) throw new Error(`Missing screenshot src/assets/projects/${slug}/${file}`);
+    const full = await getImage({ src, width: Math.min(src.width, 1800), format: 'webp' });
+    return { src, caption, full: full.src };
+  }),
+);
+---
+
+{
+  shots.length > 0 && (
+    <section class="gallery" aria-label={`${title} screenshots`}>
+      <ul data-gallery>
+        {shots.map((s, i) => (
+          <li>
+            <a href={s.full} data-i={i} aria-label={`Open screenshot ${i + 1} of ${shots.length}`}>
+              <Image src={s.src} alt={s.caption} widths={[420, 720]} sizes="(min-width: 900px) 300px, 78vw" />
+            </a>
+            <p>{s.caption}</p>
+          </li>
+        ))}
+      </ul>
+
+      <dialog class="lb" data-lb aria-label={`${title} screenshots`}>
+        <figure>
+          <img data-lb-img alt="" />
+          <figcaption>
+            <span data-lb-cap />
+            <span class="mono n" data-lb-n />
+          </figcaption>
+        </figure>
+        <div class="ctl">
+          <button type="button" class="btn sm" data-lb-step="-1">← Previous</button>
+          <button type="button" class="btn sm" data-lb-step="1" autofocus>Next →</button>
+          <button type="button" class="btn sm solid" data-lb-close>Close</button>
+        </div>
+        <script type="application/json" data-lb-data set:html={JSON.stringify(shots.map((s) => ({ src: s.full, cap: s.caption })))} />
+      </dialog>
+    </section>
+  )
+}
+
+<script>
+  document.querySelectorAll<HTMLElement>('.gallery').forEach((g) => {
+    const dlg = g.querySelector<HTMLDialogElement>('[data-lb]')!;
+    const img = dlg.querySelector<HTMLImageElement>('[data-lb-img]')!;
+    const cap = dlg.querySelector<HTMLElement>('[data-lb-cap]')!;
+    const n = dlg.querySelector<HTMLElement>('[data-lb-n]')!;
+    const list = JSON.parse(dlg.querySelector('[data-lb-data]')!.textContent!) as { src: string; cap: string }[];
+    let at = 0;
+    const show = (i: number) => {
+      at = (i + list.length) % list.length;
+      img.src = list[at].src;
+      cap.textContent = list[at].cap;
+      n.textContent = `${at + 1} / ${list.length}`;
+    };
+    g.querySelectorAll<HTMLAnchorElement>('[data-i]').forEach((a) =>
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        show(Number(a.dataset.i));
+        dlg.showModal();
+      }),
+    );
+    dlg.querySelectorAll<HTMLElement>('[data-lb-step]').forEach((b) => b.addEventListener('click', () => show(at + Number(b.dataset.lbStep))));
+    dlg.querySelector('[data-lb-close]')!.addEventListener('click', () => dlg.close());
+    dlg.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') show(at + 1);
+      if (e.key === 'ArrowLeft') show(at - 1);
+    });
+    // A click on the dark backdrop (the dialog element itself, outside its content) closes it.
+    dlg.addEventListener('click', (e) => e.target === dlg && dlg.close());
+  });
+</script>
+
+<style>
+  .gallery {
+    margin: 0 0 3.5rem;
+  }
+  ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li a {
+    display: block;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+    padding: 0.4rem;
+    transition: border-color 0.15s;
+  }
+  li a:hover {
+    border-color: var(--fg);
+  }
+  li :global(img) {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    object-position: top;
+  }
+  li p {
+    margin: 0.55rem 0 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+  /* Phones: a sideways strip that snaps, so the page doesn't grow by four screens. */
+  @media (max-width: 640px) {
+    ul {
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: 78%;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 0.5rem;
+    }
+    li {
+      scroll-snap-align: start;
+    }
+  }
+
+  .lb {
+    width: min(92rem, 100vw - 2rem);
+    max-height: calc(100dvh - 2rem);
+    padding: 0;
+    border: 1px solid var(--fg);
+    background: var(--panel);
+    color: var(--fg);
+  }
+  .lb::backdrop {
+    background: rgb(0 0 0 / 0.72);
+  }
+  .lb figure {
+    margin: 0;
+  }
+  .lb img {
+    width: 100%;
+    max-height: calc(100dvh - 8rem);
+    object-fit: contain;
+    background: var(--bg);
+  }
+  .lb figcaption {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.8rem 1rem 0;
+    font-size: 0.95rem;
+  }
+  .lb .n {
+    flex: none;
+    color: var(--muted);
+  }
+  .ctl {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    padding: 0.7rem 1rem 0.9rem;
+  }
+</style>

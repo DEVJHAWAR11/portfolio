@@ -11,6 +11,10 @@ links:
   live: https://grid-mind-tan.vercel.app
 health: https://grid-mind-tan.vercel.app
 interaction: grid
+gallery:
+  - { file: 1-new-sheet.jpg, caption: "Starting a sheet: rows are the things you research, columns are the questions." }
+  - { file: 2-use-cases.jpg, caption: "Templates for common jobs, each opening as an editable sheet." }
+  - { file: 3-architecture.jpg, caption: "The architecture from the docs: a stateless API, Postgres as the job queue, and workers running the agent." }
 highlights: ["One LangGraph agent per cell: plan queries, search, read pages if snippets are thin, answer, retry at most twice", "Postgres is the job queue, claimed with FOR UPDATE SKIP LOCKED; stale locks over 180s are reclaimed", "Cited URLs are checked against the sources actually retrieved", "Frontend has a demo mode that runs fully in the browser with no backend"]
 hard: "Running a research agent in every spreadsheet cell on free-tier rate limits without losing or duplicating work. Postgres is the job queue: cells are claimed with FOR UPDATE SKIP LOCKED, stale locks are reclaimed after three minutes, and rate-limit errors back off. Every cited URL is checked against the sources the agent actually retrieved."
 numbers:
