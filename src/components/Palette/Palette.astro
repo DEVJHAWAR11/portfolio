@@ -40,6 +40,7 @@
 <script>
   import { createIndex, type Doc, type Hit } from './search';
   import { sfx, soundOn, setSound } from '@/lib/sfx';
+  import { unlock } from '@/lib/eggs';
 
   const dlg = document.getElementById('palette') as HTMLDialogElement;
   const q = document.getElementById('pal-q') as HTMLInputElement;
@@ -125,6 +126,7 @@
     dlg.showModal();
     await load();
     render();
+    unlock('palette');
   }
 
   q.addEventListener('input', () => {

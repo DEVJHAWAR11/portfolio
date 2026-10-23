@@ -12,6 +12,11 @@ links:
 health: https://watch-tower-seven.vercel.app
 interaction: watch
 highlights: ["Evaluation runs a cost ladder: hash gate, learned noise filter, rules, triage model, then the judge model only when needed", "The judge must return a verbatim evidence quote, which is checked against the page and rejected if missing", "Public watches share one fetch and one follow-up across every subscriber", "SSRF guard resolves DNS at connect time and connects to the exact IP it checked"]
+hard: "Deciding whether a changed page really meets a plain-English condition without paying for an LLM call on every check. Each check walks a cost ladder and stops as early as it can, and the judge at the top has to quote the page word for word, which is verified before any alert goes out. If the model is down or over budget, the run is deferred instead of guessed."
+numbers:
+  - { value: "~150", label: "test functions across unit, integration, agent, security, end-to-end and load suites", src: "https://github.com/DEVJHAWAR11/WatchTower/tree/main/backend/tests" }
+  - { value: "40+", label: "SSRF bypass attempts the URL guard is tested against", src: "https://github.com/DEVJHAWAR11/WatchTower/blob/main/docs/ARCHITECTURE.md" }
+  - { value: "70+", label: "real queries in the intake test set", src: "https://github.com/DEVJHAWAR11/WatchTower/blob/main/backend/README.md" }
 diagram:
   nodes:
     - { id: fe, label: "Frontend", role: "watch setup, live view", col: 0, row: 1 }

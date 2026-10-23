@@ -141,6 +141,35 @@ const links = [
             <p class="problem"><Gloss text={d.problem} /></p>
           )
         }
+        {
+          d.hard && (
+            <div class="hard">
+              <h2>The hard part</h2>
+              <p><Gloss text={d.hard} /></p>
+            </div>
+          )
+        }
+        {
+          d.numbers.length > 0 && (
+            <div class="nums">
+              <h2>In numbers</h2>
+              <ul class="blk">
+                {d.numbers.map((n) => (
+                  <li>
+                    <span class="v display">{n.value}</span>
+                    <span class="l">{n.label}</span>
+                    {n.src && (
+                      <a class="src mono" href={n.src} target="_blank" rel="noopener">
+                        source ↗
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p class="fine mono">Figures as stated in the repo. Evals are small samples, and the repo says so.</p>
+            </div>
+          )
+        }
         <Content />
       </div>
 
@@ -300,6 +329,65 @@ const links = [
     background: var(--panel);
     font-size: 1.12rem;
     line-height: 1.55;
+  }
+  .hard p {
+    margin: 0;
+  }
+  .nums ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .nums li {
+    display: grid;
+    align-content: start;
+    gap: 0.3rem;
+    padding: 1rem 1.1rem;
+    border-bottom: 1px solid var(--edge);
+  }
+  .nums li:nth-child(odd) {
+    border-right: 1px solid var(--edge);
+  }
+  .nums li:nth-last-child(-n + 2):nth-child(odd),
+  .nums li:last-child {
+    border-bottom: 0;
+  }
+  .nums .v {
+    font-size: 2rem;
+    font-weight: 800;
+    font-stretch: 80%;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .nums .l {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+  .nums .src {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .nums .src:hover {
+    color: var(--accent);
+  }
+  .prose .fine {
+    margin: 0.6rem 0 0;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  @media (max-width: 560px) {
+    .nums ul {
+      grid-template-columns: 1fr;
+    }
+    .nums li:nth-child(odd) {
+      border-right: 0;
+    }
+    .nums li:nth-last-child(-n + 2):nth-child(odd) {
+      border-bottom: 1px solid var(--edge);
+    }
   }
   .prose :global(h2) {
     margin: 2.8rem 0 0.8rem;

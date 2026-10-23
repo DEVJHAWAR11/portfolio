@@ -14,13 +14,13 @@ const nav = [
 
 <header class="bar" data-noprint>
   <div class="inner">
-    <a href="/" class="mark" aria-label={`${profile.name}, home`}>
+    <a href="/" class="mark">
       <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
         <rect x="1" y="1" width="22" height="22" fill="var(--fg)" />
         <rect x="12" y="12" width="11" height="11" fill="var(--accent)" />
       </svg>
       <span class="who">
-        Dev Jhawar
+        <span>{profile.name}<span class="sr-only">, home</span></span>
         {home && <small class="hint mono" id="hint" aria-hidden="true">click me</small>}
       </span>
     </a>

@@ -61,6 +61,16 @@ const canonical = new URL(Astro.url.pathname.replace(/(index)?\.html$/, ''), Ast
     <Footer />
     <Palette />
     <GlossTip />
+    <!-- Vercel Web Analytics: page views only, no cookies. Loaded on the real domain only. -->
+    <script is:inline>
+      if (location.hostname === 'devjhawar.com') {
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+        const s = document.createElement('script');
+        s.src = '/_vercel/insights/script.js';
+        s.defer = true;
+        document.body.append(s);
+      }
+    </script>
   </body>
 </html>
 

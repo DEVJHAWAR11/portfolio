@@ -11,6 +11,11 @@ links:
   live: https://github.com/DEVJHAWAR11/Tidyflow/releases/latest
 interaction: tidy
 highlights: ["Reads file contents, with on-device OCR (Apple Vision on macOS, PaddleOCR on Windows)", "Copies by default, verifies every copy with SHA-256, never overwrites", "Undo checks each file's hash before removing anything", "Works with no API key by falling back to rules and file types"]
+hard: "Sorting files by what's inside them without ever losing one. Text is extracted, with on-device OCR for scans, and the folder plan is built from the actual files. Only moves above 0.85 confidence happen on their own and the rest wait for review. Every copy is verified with SHA-256 and never overwrites, and undo re-checks the hashes before removing anything."
+numbers:
+  - { value: "~106", label: "tests", src: "https://github.com/DEVJHAWAR11/Tidyflow/tree/main/tests" }
+  - { value: "0.85", label: "confidence needed before a file is sorted without asking", src: "https://github.com/DEVJHAWAR11/Tidyflow/blob/main/config.yaml" }
+  - { value: "2", label: "platforms shipped: macOS and Windows builds", src: "https://github.com/DEVJHAWAR11/Tidyflow/releases" }
 diagram:
   nodes:
     - { id: pick, label: "Pick folder", role: "Downloads, Desktop, any", col: 0, row: 1 }

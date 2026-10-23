@@ -12,6 +12,12 @@ links:
 health: https://casecompass-qw3v.onrender.com/health
 interaction: rrf
 highlights: ["627 consumer-commission judgments across ten categories, with citation edges", "Hybrid search (HNSW vectors plus tsvector) merged with RRF; shipped setup reached hit@5 1.00 and MRR 0.96 on 27 airline stories", "No AI writes the answer at search time: outcome counts are computed in code and the order sentence is quoted", "Outcome labels are about 71-78% accurate on blind samples, reported openly"]
+hard: "Matching a layperson's story to consumer-court judgments written in legal language, without letting a model invent outcomes. One small LLM call rewrites the query, then keyword and vector search are merged with Reciprocal Rank Fusion over late-chunked embeddings. Outcomes come from an offline extraction step plus code rules, and the counts are computed in code."
+numbers:
+  - { value: "0.96", label: "MRR on a 27-story airline eval, up from 0.87 with plain vector search", src: "https://github.com/DEVJHAWAR11/CaseCompass/blob/main/eval/results.md" }
+  - { value: "1.00", label: "hit@5 on the same eval: a relevant case in the top five every time", src: "https://github.com/DEVJHAWAR11/CaseCompass/blob/main/eval/results.md" }
+  - { value: "88%", label: "of top-5 results in the right category across 16 stories", src: "https://github.com/DEVJHAWAR11/CaseCompass/blob/main/eval/results_multi.md" }
+  - { value: "627", label: "judgments indexed", src: "https://github.com/DEVJHAWAR11/CaseCompass#readme" }
 diagram:
   nodes:
     - { id: user, label: "Next.js", role: "story in, cards out", col: 0, row: 1 }

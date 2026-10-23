@@ -1,14 +1,60 @@
 ---
 import profile from '@/data/profile.json';
+import { EGGS } from '@/lib/eggs';
 const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
 ---
 
 <footer class="mono" data-noprint>
   <div class="inner">
     <span>© {new Date().getFullYear()} {profile.name}</span>
-    <span>Built with Astro, last build {built} UTC. <a href="/status">Service status</a></span>
+    <div class="eggs">
+      <button type="button" aria-expanded="false" aria-controls="egg-list" data-eggs>
+        <span data-count>0</span> of {EGGS.length} easter eggs found
+      </button>
+      <ul id="egg-list" hidden>
+        {
+          EGGS.map((e) => (
+            <li data-egg={e.id}>
+              <i class="dot" />
+              <span>
+                <b>{e.name}</b>
+                <small>{e.hint}</small>
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <span>Built with Astro, last build {built} UTC. <a href="/status">Service status</a>. <a href="/cli">Terminal</a></span>
   </div>
 </footer>
+
+<script>
+  import { found } from '@/lib/eggs';
+
+  const btn = document.querySelector<HTMLButtonElement>('[data-eggs]')!;
+  const list = document.getElementById('egg-list')!;
+  const sync = () => {
+    const have = found();
+    btn.querySelector('[data-count]')!.textContent = String(have.length);
+    btn.classList.toggle('some', have.length > 0);
+    list.querySelectorAll<HTMLElement>('[data-egg]').forEach((li) => {
+      const got = have.includes(li.dataset.egg as never);
+      li.classList.toggle('got', got);
+      li.querySelector('.dot')!.className = `dot ${got ? 'ok' : ''}`;
+    });
+  };
+  sync();
+  document.addEventListener('eggs', sync);
+  const show = (open: boolean) => {
+    list.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  };
+  btn.addEventListener('click', () => show(list.hidden));
+  document.addEventListener('click', (e) => !list.hidden && !(e.target as Element).closest('.eggs') && show(false));
+  list.addEventListener('keydown', (e) => e.key === 'Escape' && (show(false), btn.focus()));
+  btn.addEventListener('keydown', (e) => e.key === 'Escape' && show(false));
+</script>
 
 <style>
   footer {
@@ -29,6 +75,73 @@ const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem 1.5rem;
+  }
+  .eggs {
+    position: relative;
+  }
+  .eggs button {
+    padding: 0.2rem 0;
+    color: inherit;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+  }
+  .eggs button.some,
+  .eggs button:hover {
+    color: var(--fg);
+  }
+  .eggs button.some [data-count] {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  ul {
+    position: absolute;
+    bottom: calc(100% + 0.6rem);
+    left: 0;
+    z-index: 20;
+    width: min(21rem, 100vw - 2 * var(--gutter));
+    margin: 0;
+    padding: 0.4rem 0;
+    list-style: none;
+    border: 1px solid var(--fg);
+    background: var(--panel);
+    box-shadow: 5px 5px 0 color-mix(in srgb, var(--fg) 12%, transparent);
+  }
+  ul[hidden] {
+    display: none;
+  }
+  li {
+    display: grid;
+    grid-template-columns: 0.9rem 1fr;
+    align-items: baseline;
     gap: 0.5rem;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.72rem;
+  }
+  li + li {
+    border-top: 1px solid var(--edge);
+  }
+  li .dot:not(.ok) {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--faint);
+  }
+  li span {
+    display: grid;
+    gap: 0.15rem;
+  }
+  li b {
+    color: var(--faint);
+    font-weight: 600;
+  }
+  li.got b {
+    color: var(--fg);
+  }
+  small {
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  li.got small {
+    display: none;
   }
 </style>

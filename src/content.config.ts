@@ -20,6 +20,10 @@ const projects = defineCollection({
     }),
     health: z.string().optional(),
     highlights: z.array(z.string()).default([]),
+    // The hardest problem the project solves, in a few plain sentences.
+    hard: z.string().optional(),
+    // Figures stated in the repo itself (evals, tests, limits), each with where it comes from.
+    numbers: z.array(z.object({ value: z.string(), label: z.string(), src: z.string().optional() })).default([]),
     interaction: z.string().optional(),
     diagram: z
       .object({

@@ -3,6 +3,7 @@ import profile from '@/data/profile.json';
 import { loadStatus } from './status-client';
 import { chaos } from './chaos';
 import { setSound } from './sfx';
+import { unlock } from './eggs';
 
 const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#2b37e6';
 console.log(
@@ -21,7 +22,7 @@ const help = {
   'dev.sound(false)': 'turns the click sounds off (true for on)',
 };
 
-(window as unknown as { dev: object }).dev = {
+const commands: Record<string, (...a: never[]) => unknown> = {
   help: () => console.table(help),
   async projects() {
     const docs = (await fetch('/search.json').then((r) => r.json())) as { k: string; t: string; s: string; h: string }[];
@@ -40,3 +41,8 @@ const help = {
   chaos: () => (chaos(), 'Chaos monkey released. Watch the page.'),
   sound: (on = true) => (setSound(on), `Sounds ${on ? 'on' : 'off'}`),
 };
+
+// Using any of them counts as finding the console egg.
+(window as unknown as { dev: object }).dev = Object.fromEntries(
+  Object.entries(commands).map(([k, f]) => [k, (...a: never[]) => (unlock('console'), f(...a))]),
+);
