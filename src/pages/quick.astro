@@ -1,0 +1,284 @@
+---
+// The 60-second version of the site, for anyone skimming: who, the three projects worth a look,
+// open source in numbers, and how to get in touch. Built from the same data as the home page.
+import { getCollection } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import profile from '@/data/profile.json';
+import { getGitHub } from '@/lib/github';
+
+const projects = (await getCollection('projects')).filter((p) => p.data.featured).sort((a, b) => a.data.order - b.data.order).slice(0, 3);
+const skills = await getCollection('skills');
+const [job] = (await getCollection('experience')).map((e) => e.data);
+const { prs, quotes = [] } = await getGitHub();
+
+const merged = prs.filter((p) => p.state === 'merged').length;
+const open = prs.filter((p) => p.state === 'open').length;
+const repos = [...new Map(prs.map((p) => [p.repo, p.stars ?? 0])).entries()].sort((a, b) => b[1] - a[1]);
+const kstars = (n: number) => (n < 1000 ? String(n) : `${(n / 1000).toFixed(n < 10_000 ? 1 : 0).replace(/\.0$/, '')}k`);
+// Same group order as the Stack section, most relevant first.
+const order = ['Agentic AI', 'RAG & Retrieval', 'Machine Learning', 'Backend', 'Infra & Ops'];
+const rank = (g: string) => (order.indexOf(g) + 1 || 99);
+const groups = [...new Set(skills.map((s) => s.data.group))].sort((a, b) => rank(a) - rank(b)).map((g) => [g, skills.filter((s) => s.data.group === g).map((s) => s.data.name)] as const);
+const link = (l: string) => profile.links.find((x) => x.label === l)!;
+const quote = quotes[0];
+---
+
+<Base title={`${profile.name} in 60 seconds`} description={`${profile.name}: ${profile.role} The short version: three projects, open source and contact.`}>
+  <article class="quick">
+    <header class="top">
+      <p class="mono back"><a href="/">← Full site</a></p>
+      <h1>{profile.name}</h1>
+      <p class="role">{profile.role}</p>
+      <dl class="facts">
+        <div><dt>Studying</dt><dd>{profile.school.replace(/ · /g, ', ')}</dd></div>
+        <div><dt>CGPA</dt><dd>{profile.cgpa}</dd></div>
+        <div><dt>Based in</dt><dd>{profile.location} (UTC+5:30)</dd></div>
+        {job && <div><dt>Now</dt><dd>{job.title}</dd></div>}
+      </dl>
+      <div class="cta">
+        <a class="btn solid" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
+        <a class="btn" href={`mailto:${profile.email}`}>Email me</a>
+        <a class="btn" href={link('GitHub').href} target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href={link('LinkedIn').href} target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </header>
+
+    <section>
+      <h2>Three projects</h2>
+      <ol class="projects">
+        {
+          projects.map((p) => (
+            <li class="blk">
+              <h3>
+                <a href={`/projects/${p.id}`}>{p.data.title}</a>
+              </h3>
+              <p>{p.data.tagline}</p>
+              {p.data.numbers.length > 0 && (
+                <ul class="nums">
+                  {p.data.numbers.slice(0, 2).map((n) => (
+                    <li>
+                      <b>{n.value}</b> <span>{n.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p class="mono stack">{p.data.stack.slice(0, 5).join(', ')}</p>
+              <p class="mono links">
+                <a href={`/projects/${p.id}`}>Case study</a>
+                {p.data.links.github && <a href={p.data.links.github} target="_blank" rel="noopener">Code ↗</a>}
+                {p.data.links.live && <a href={p.data.links.live} target="_blank" rel="noopener">Live ↗</a>}
+              </p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    {
+      prs.length > 0 && (
+        <section>
+          <h2>Open source</h2>
+          <p class="big">
+            <b>{merged}</b> pull requests merged and <b>{open}</b> in review, across <b>{repos.length}</b> organization repos.
+          </p>
+          <ul class="mono repos">
+            {repos.map(([r, s]) => (
+              <li>
+                <a href={`https://github.com/${r}`} target="_blank" rel="noopener">{r}</a>
+                {s > 0 && <span>★ {kstars(s)}</span>}
+              </li>
+            ))}
+          </ul>
+          {quote && (
+            <blockquote cite={quote.url}>
+              <p>“{quote.text}”</p>
+              <footer class="mono">
+                <a href={quote.url} target="_blank" rel="noopener">@{quote.who}, reviewing a PR on {quote.repo}</a>
+              </footer>
+            </blockquote>
+          )}
+        </section>
+      )
+    }
+
+    <section>
+      <h2>What I work with</h2>
+      <dl class="skills">
+        {
+          groups.map(([g, names]) => (
+            <div>
+              <dt>{g}</dt>
+              <dd>{names.join(', ')}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <p class="end">
+      That's the short version. <a href="/">The full site</a> has the write-ups, live demos and every PR.
+    </p>
+  </article>
+</Base>
+
+<style>
+  .quick {
+    max-width: 52rem;
+    padding: 2rem 0 0;
+  }
+  .back {
+    margin: 0 0 1.5rem;
+    font-size: 0.8rem;
+  }
+  .back a,
+  .end a,
+  .links a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .back a:hover,
+  .end a:hover,
+  .links a:hover,
+  h3 a:hover,
+  .repos a:hover {
+    color: var(--accent);
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.6rem, 7vw, 4.4rem);
+    line-height: 0.95;
+  }
+  .role {
+    max-width: 36rem;
+    margin: 0.8rem 0 1.4rem;
+    font-size: 1.2rem;
+    color: var(--muted);
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 2rem;
+    margin: 0 0 1.5rem;
+  }
+  .facts dt,
+  .skills dt {
+    font-size: 0.72rem;
+    color: var(--faint);
+  }
+  .facts dd,
+  .skills dd {
+    margin: 0.1rem 0 0;
+    font-weight: 500;
+  }
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  section {
+    margin-top: 3rem;
+  }
+  h2 {
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--edge);
+    font-size: 1.1rem;
+  }
+  .projects {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .projects > li {
+    padding: 1.1rem 1.25rem;
+  }
+  h3 {
+    margin: 0 0 0.3rem;
+    font-size: 1.3rem;
+  }
+  .projects p {
+    margin: 0;
+  }
+  .nums {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0.8rem 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.9rem;
+  }
+  .nums b {
+    color: var(--accent);
+    font-size: 1.05rem;
+  }
+  .nums span {
+    color: var(--muted);
+  }
+  .stack {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .links {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.6rem !important;
+    font-size: 0.8rem;
+  }
+  .big {
+    margin: 0 0 1rem;
+    font-size: 1.15rem;
+  }
+  .big b {
+    color: var(--accent);
+  }
+  .repos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.75rem;
+  }
+  .repos li {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--edge);
+    background: var(--panel);
+  }
+  .repos span {
+    color: var(--muted);
+  }
+  blockquote {
+    margin: 1.2rem 0 0;
+    padding: 0.2rem 0 0.2rem 1rem;
+    border-left: 3px solid var(--accent);
+  }
+  blockquote p {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+  }
+  blockquote footer {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .skills {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem 2rem;
+    margin: 0;
+  }
+  .end {
+    margin: 3rem 0 0;
+    color: var(--muted);
+  }
+  @media print {
+    .cta,
+    .back {
+      display: none;
+    }
+  }
+</style>

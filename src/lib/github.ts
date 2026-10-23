@@ -14,6 +14,16 @@ export interface PR {
   created: string;
   closed?: string; // merged or closed date
   stars?: number; // the repo's stars, used to order the list
+  add?: number; // lines added and removed, and files touched
+  del?: number;
+  files?: number;
+}
+/** Something a reviewer wrote on one of the PRs, linked to the comment. */
+export interface Quote {
+  text: string;
+  who: string;
+  repo: string;
+  url: string;
 }
 /** One day of the contribution calendar: date, count and GitHub's 0-4 level. */
 export interface Day {
@@ -29,6 +39,7 @@ export interface Cal {
 }
 export interface GitHubData {
   prs: PR[];
+  quotes: Quote[];
   cals: Cal[];
   at: string; // when this was fetched
 }
@@ -43,7 +54,7 @@ const headers = (): Record<string, string> => {
   };
 };
 
-async function fetchPRs(retry = true): Promise<PR[]> {
+async function fetchPRs(retry = true): Promise<{ prs: PR[]; quotes: Quote[] }> {
   const q = encodeURIComponent(`author:${user} type:pr -user:${user}`);
   const res = await fetch(`https://api.github.com/search/issues?q=${q}&per_page=100&sort=created&order=desc`, { headers: headers() });
   // Search allows only 10 calls a minute without a token. If the limit resets soon, wait for it once.
@@ -54,6 +65,7 @@ async function fetchPRs(retry = true): Promise<PR[]> {
   }
   if (!res.ok) throw new Error(`PR search ${res.status}`);
   const json = (await res.json()) as { items: any[] };
+  const ids = new Map<string, string>(json.items.map((i) => [i.html_url, i.node_id]));
   const prs: PR[] = json.items.map((i) => ({
     repo: i.repository_url.split('/repos/')[1],
     number: i.number,
@@ -74,7 +86,55 @@ async function fetchPRs(retry = true): Promise<PR[]> {
       }),
     ),
   );
-  return prs.filter((p) => info.get(p.repo)?.org !== false).map((p) => ({ ...p, stars: info.get(p.repo)?.stars }));
+  const kept = prs.filter((p) => info.get(p.repo)?.org !== false).map((p) => ({ ...p, stars: info.get(p.repo)?.stars }));
+  const extra = await fetchDetails(kept.map((p) => ids.get(p.url)!)).catch(() => null);
+  if (!extra) return { prs: kept, quotes: [] };
+  return { prs: kept.map((p) => ({ ...p, ...extra.size.get(p.url) })), quotes: extra.quotes };
+}
+
+// Sizes and reviewer comments come from one GraphQL call, which needs the token.
+// Quotes are what people with a role in the repo wrote: approvals and comments with some thanks or praise in them,
+// never bots, and at most one per repo.
+const PRAISE = /\b(thanks?|thank you|lgtm|great|nice|good|right fix|checks? out|appreciate|well done|clean)\b/i;
+const ROLES = new Set(['OWNER', 'MEMBER', 'COLLABORATOR', 'CONTRIBUTOR']);
+async function fetchDetails(nodeIds: string[]) {
+  if (!process.env.GITHUB_TOKEN || !nodeIds.length) return null;
+  const query = `query($ids:[ID!]!){nodes(ids:$ids){... on PullRequest{url additions deletions changedFiles
+    repository{nameWithOwner stargazerCount}
+    reviews(last:20){nodes{author{login __typename} authorAssociation bodyText state url}}
+    comments(last:40){nodes{author{login __typename} authorAssociation bodyText url}}}}}`;
+  const res = await fetch('https://api.github.com/graphql', { method: 'POST', headers: headers(), body: JSON.stringify({ query, variables: { ids: nodeIds } }) });
+  if (!res.ok) throw new Error(`GraphQL ${res.status}`);
+  const nodes = ((await res.json()) as any).data.nodes.filter(Boolean);
+  const size = new Map<string, Pick<PR, 'add' | 'del' | 'files'>>(nodes.map((n: any) => [n.url, { add: n.additions, del: n.deletions, files: n.changedFiles }]));
+  const picks: (Quote & { score: number })[] = [];
+  for (const n of nodes) {
+    for (const c of [...n.reviews.nodes, ...n.comments.nodes]) {
+      const who = c.author?.login;
+      if (!who || who === user || c.author.__typename !== 'User' || /bot$/i.test(who) || !ROLES.has(c.authorAssociation)) continue;
+      const text = trim(c.bodyText ?? '');
+      if (text.length < 4 || text.startsWith('/') || !(c.state === 'APPROVED' || PRAISE.test(text))) continue;
+      picks.push({ text, who, repo: n.repository.nameWithOwner, url: c.url, score: Math.min(text.length, 200) + Math.log10(n.repository.stargazerCount + 1) * 10 });
+    }
+  }
+  const seen = new Set<string>();
+  const quotes = picks
+    .sort((a, b) => b.score - a.score)
+    .filter((q) => !seen.has(q.repo) && seen.add(q.repo))
+    .map(({ score, ...q }) => q);
+  return { size, quotes };
+}
+
+// A comment cut to its first couple of sentences, word for word.
+function trim(t: string) {
+  const flat = t.replace(/\s+/g, ' ').trim();
+  if (flat.length <= 220) return flat;
+  let out = '';
+  for (const s of flat.split(/(?<=[.!?])\s+(?=[A-Z])/)) {
+    if ((out + ' ' + s).length > 220) break;
+    out += ' ' + s;
+  }
+  return (out || flat.slice(0, 200)).trim() + ' …';
 }
 
 // With a token the GraphQL API gives exact counts; without one, the public calendar page has the same data.
@@ -128,8 +188,8 @@ async function fetchCals(): Promise<Cal[]> {
 
 /** Fresh data, or an error. The Vercel Function uses this, so a failed fetch never replaces good data. */
 export async function fetchGitHub(): Promise<GitHubData> {
-  const [prs, cals] = await Promise.all([fetchPRs(false), fetchCals()]); // no waiting inside a function
-  return { prs, cals, at: new Date().toISOString() };
+  const [{ prs, quotes }, cals] = await Promise.all([fetchPRs(false), fetchCals()]); // no waiting inside a function
+  return { prs, quotes, cals, at: new Date().toISOString() };
 }
 
 // The last good result is kept on disk, so a failed fetch during a build reuses it instead of showing nothing.
@@ -152,11 +212,11 @@ let cached: Promise<GitHubData> | undefined;
 export function getGitHub(): Promise<GitHubData> {
   cached ??= (async () => {
     const old = load();
-    const [prs, cals] = await Promise.all([
-      fetchPRs().catch(fallback('PR', old.prs, [] as PR[])),
+    const [{ prs, quotes }, cals] = await Promise.all([
+      fetchPRs().catch(fallback('PR', old.prs && { prs: old.prs, quotes: old.quotes ?? [] }, { prs: [] as PR[], quotes: [] as Quote[] })),
       fetchCals().catch(fallback('calendar', old.cals, [] as Cal[])),
     ]);
-    const data = { prs, cals, at: new Date().toISOString() };
+    const data = { prs, quotes, cals, at: new Date().toISOString() };
     try {
       mkdirSync('node_modules/.cache/devjhawar', { recursive: true });
       writeFileSync(SNAPSHOT, JSON.stringify(data));

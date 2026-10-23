@@ -60,6 +60,11 @@ const s = Object.fromEntries(sections.map((x) => [x.id, x]));
   </Section>
 </Base>
 
+<script>
+  import { watchVisit } from '@/lib/flame';
+  watchVisit();
+</script>
+
 <style>
   .about {
     display: grid;

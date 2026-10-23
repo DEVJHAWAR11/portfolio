@@ -2,10 +2,10 @@
 // Contribution map and pull requests to other people's repos.
 // Rendered from a build-time snapshot, then refreshed from /api/github (cached for an hour) when that is newer.
 import { getGitHub } from '@/lib/github';
-import { heatmap, prGroups, packCals, total } from '@/lib/oss-render';
+import { heatmap, prGroups, packCals, quotes as quoteList, total } from '@/lib/oss-render';
 import Pending from '@/components/Pending/Pending.astro';
 
-const { prs, cals, at } = await getGitHub();
+const { prs, quotes = [], cals, at } = await getGitHub();
 const first = cals[0];
 const counts = { merged: 0, open: 0, closed: 0 };
 prs.forEach((p) => counts[p.state]++);
@@ -86,10 +86,15 @@ const palettes = [
     </div>
     <div data-prs set:html={prGroups(prs)} />
   </div>
+
+  <div class="said" data-saidwrap hidden={quotes.length === 0}>
+    <h3>What reviewers said</h3>
+    <ul data-said set:html={quoteList(quotes)} />
+  </div>
 </div>
 
 <script>
-  import { heatmap, prGroups, packCals, unpackCals, dayLabel, total } from '@/lib/oss-render';
+  import { heatmap, prGroups, packCals, unpackCals, dayLabel, quotes, total } from '@/lib/oss-render';
   import { pacman } from '@/lib/pacman';
   import { unlock } from '@/lib/eggs';
   import type { Cal, Day, GitHubData, PR } from '@/lib/github';
@@ -260,6 +265,13 @@ const palettes = [
         g.prs.forEach((p: PR) => counts[p.state]++);
         root!.querySelectorAll<HTMLElement>('[data-f]').forEach((b) => (b.querySelector('.n')!.textContent = String(counts[b.dataset.f!])));
         applyFilter();
+      }
+      const said = $('[data-said]');
+      if (g.quotes?.length && said) {
+        const next = document.createElement('template');
+        next.innerHTML = quotes(g.quotes);
+        if (next.innerHTML !== said.innerHTML) said.innerHTML = next.innerHTML;
+        $('[data-saidwrap]')!.hidden = false;
       }
       root!.dataset.at = g.at;
       showAge();
@@ -740,5 +752,72 @@ const palettes = [
   [data-prs] :global(.num) {
     margin-right: 0.3rem;
     color: var(--muted);
+  }
+  [data-prs] :global(.size) {
+    margin-left: 0.5rem;
+    white-space: nowrap;
+  }
+  [data-prs] :global(.add) {
+    color: var(--ok);
+  }
+  [data-prs] :global(.del) {
+    color: var(--fail);
+  }
+
+  /* Reviewer quotes, word for word, each linking to the comment. */
+  .said {
+    margin-top: 1.5rem;
+  }
+  .said[hidden] {
+    display: none;
+  }
+  .said h3 {
+    margin: 0 0 0.8rem;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+  [data-said] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  [data-said] :global(li) {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.9rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--edge);
+    border-left: 3px solid var(--accent);
+    background: var(--panel);
+  }
+  [data-said] :global(blockquote) {
+    margin: 0;
+  }
+  [data-said] :global(blockquote p) {
+    margin: 0;
+    font-size: 0.98rem;
+    line-height: 1.5;
+  }
+  [data-said] :global(.by) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  [data-said] :global(.by img) {
+    border: 1px solid var(--edge);
+  }
+  [data-said] :global(.by span) {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  [data-said] :global(.by:hover),
+  [data-said] :global(.by:hover span) {
+    color: var(--accent);
   }
 </style>

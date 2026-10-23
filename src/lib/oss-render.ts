@@ -1,6 +1,6 @@
 // Markup for the contribution map and the PR list, as plain strings.
 // The page renders them at build time, and the browser re-renders them if /api/github has newer data.
-import type { Cal, Day, PR } from './github';
+import type { Cal, Day, PR, Quote } from './github';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
 const MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
@@ -110,7 +110,12 @@ function card(repo: string, list: PR[]): string {
           : p.state === 'closed'
             ? 'closed'
             : 'in review';
-      return `<li data-state="${p.state}"><a href="${esc(p.url)}" target="_blank" rel="noopener"><i class="stop" aria-hidden="true"></i><span class="t">${esc(p.title)}</span><span class="mono m"><span class="num">#${p.number}</span> ${when}</span></a></li>`;
+      // How big the change was: lines added and removed, and files touched.
+      const size =
+        p.add != null
+          ? ` <span class="size" title="${p.add} lines added, ${p.del} removed"><span class="add">+${p.add}</span> <span class="del">−${p.del}</span> ${plural(p.files ?? 0, 'file')}</span>`
+          : '';
+      return `<li data-state="${p.state}"><a href="${esc(p.url)}" target="_blank" rel="noopener"><i class="stop" aria-hidden="true"></i><span class="t">${esc(p.title)}</span><span class="mono m"><span class="num">#${p.number}</span> ${when}${size}</span></a></li>`;
     })
     .join('');
   return `<li class="repo" data-repo>
@@ -124,3 +129,13 @@ function card(repo: string, list: PR[]): string {
   <ol class="track">${rows}</ol>
 </li>`;
 }
+
+/** A few things reviewers wrote on the PRs, each linking to the comment on GitHub. */
+export const quotes = (list: Quote[]) =>
+  list
+    .slice(0, 4)
+    .map(
+      (q) => `<li><blockquote cite="${esc(q.url)}"><p>${esc(q.text)}</p></blockquote>
+  <a class="mono by" href="${esc(q.url)}" target="_blank" rel="noopener"><img src="https://github.com/${esc(q.who)}.png?size=48" alt="" width="20" height="20" loading="lazy" decoding="async"><span>@${esc(q.who)}</span> on ${esc(q.repo)}</a></li>`,
+    )
+    .join('');

@@ -17,6 +17,7 @@ export async function GET() {
     { k: 'Action', t: 'Sounds on or off', s: 'The small click sounds', a: 'sound', x: 'mute audio sfx volume quiet' },
     { k: 'Action', t: 'Open résumé', s: 'Opens in a new tab', h: profile.resume, x: 'resume cv hire', pin: true },
     ...sections.map((s): Doc => ({ k: 'Section', t: s.title, s: s.label ?? '', h: `/#${s.id}`, pin: true })),
+    { k: 'Page', t: '60-second view', s: 'The short version, for recruiters', h: '/quick', x: 'quick summary recruiter resume short tldr hire' },
     { k: 'Page', t: 'Terminal', s: 'The site as commands', h: '/cli', x: 'cli shell command line console bash' },
     { k: 'Page', t: 'Status', s: 'Whether each live demo is up right now', h: '/status', x: 'uptime health down asleep wake' },
     ...projects.map(
