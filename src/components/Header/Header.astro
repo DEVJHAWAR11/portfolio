@@ -1,5 +1,8 @@
 ---
 import profile from '@/data/profile.json';
+import Secrets from '@/components/Secrets/Secrets.astro';
+
+const home = /^\/(index\.html)?$/.test(Astro.url.pathname);
 
 const nav = [
   { href: '/#projects', label: 'Projects' },
@@ -16,9 +19,12 @@ const nav = [
         <rect x="1" y="1" width="22" height="22" fill="var(--fg)" />
         <rect x="12" y="12" width="11" height="11" fill="var(--accent)" />
       </svg>
-      <span>Dev Jhawar</span>
+      <span class="who">
+        Dev Jhawar
+        {home && <small class="hint mono" id="hint" aria-hidden="true">click me</small>}
+      </span>
     </a>
-    <span class="limit mono" id="limit" role="status" hidden></span>
+    {home && <Secrets />}
     <nav aria-label="Sections">
       {nav.map((n) => <a href={n.href}>{n.label}</a>)}
     </nav>
@@ -47,6 +53,8 @@ const nav = [
 </header>
 
 <script>
+  import { sfx } from '@/lib/sfx';
+
   // Clock in my timezone; the dot goes amber when I'm probably asleep.
   const time = document.getElementById('clock-time')!;
   const dot = document.getElementById('clock-dot')!;
@@ -64,46 +72,30 @@ const nav = [
 
   if (/Mac|iPhone|iPad/.test(navigator.platform)) document.getElementById('find-key')!.textContent = '⌘K';
 
-  // On the home page the logo scrolls to the top, behind a token-bucket rate limiter:
-  // 5 tokens, one back every second. Click fast enough to empty it and it answers 429 for a few seconds.
+  // On the home page the logo scrolls to the top, and five quick clicks open the secrets console.
   const mark = document.querySelector<HTMLAnchorElement>('.mark')!;
-  const limit = document.getElementById('limit')!;
-  const CAP = 5;
-  let tokens = CAP;
-  let last = performance.now();
-  let lockedUntil = 0;
-  let hideTimer = 0;
-  const meter = (n: number) => '■'.repeat(n) + '□'.repeat(CAP - n);
+  const hint = document.getElementById('hint');
+  const NEED = 5;
+  let clicks = 0;
+  let last = 0;
+  let reset = 0;
   mark.addEventListener('click', (e) => {
-    if (location.pathname !== '/') return;
+    if (!hint) return;
     e.preventDefault();
     const now = performance.now();
-    tokens = Math.min(CAP, tokens + (now - last) / 1000);
+    clicks = now - last < 1500 ? clicks + 1 : 1;
     last = now;
-    clearTimeout(hideTimer);
-    if (now < lockedUntil) {
-      limit.textContent = `429 Too Many Requests. Try again in ${Math.ceil((lockedUntil - now) / 1000)} s`;
-    } else if (tokens < 1) {
-      lockedUntil = now + 3000;
-      limit.dataset.state = 'limited';
-      limit.textContent = '429 Too Many Requests. Try again in 3 s';
-      setTimeout(() => {
-        tokens = CAP;
-        delete limit.dataset.state;
-        limit.textContent = `${meter(CAP)} bucket refilled`;
-        hideTimer = window.setTimeout(() => (limit.hidden = true), 1500);
-      }, 3000);
-      limit.hidden = false;
+    window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    clearTimeout(reset);
+    if (clicks >= NEED) {
+      clicks = 0;
+      hint.textContent = 'click me';
+      document.dispatchEvent(new CustomEvent('secrets', { detail: mark }));
       return;
-    } else {
-      tokens -= 1;
-      window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-      // Only shows up once someone is clearly clicking repeatedly.
-      if (tokens >= CAP - 2) return;
-      limit.textContent = `${meter(Math.floor(tokens))} ${Math.floor(tokens)} of ${CAP} requests left`;
     }
-    limit.hidden = false;
-    hideTimer = window.setTimeout(() => (limit.hidden = true), 2000);
+    sfx.tick(clicks - 1);
+    hint.textContent = clicks === 1 ? 'keep going' : `${NEED - clicks} more`;
+    reset = window.setTimeout(() => (hint.textContent = 'click me'), 1500);
   });
 
   const root = document.documentElement;
@@ -112,6 +104,7 @@ const nav = [
   sync();
   btn.addEventListener('click', () => {
     const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    sfx.toggle();
     const apply = () => {
       root.dataset.theme = next;
       sync();
@@ -144,24 +137,6 @@ const nav = [
     gap: 1rem;
     position: relative;
   }
-  .limit {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    left: 0;
-    padding: 0.35rem 0.6rem;
-    border: 1px solid var(--edge);
-    background: var(--panel);
-    font-size: 0.72rem;
-    white-space: nowrap;
-    color: var(--muted);
-  }
-  .limit[hidden] {
-    display: none;
-  }
-  .limit[data-state='limited'] {
-    border-color: var(--fail);
-    color: var(--fail);
-  }
   .mark {
     display: flex;
     align-items: center;
@@ -170,6 +145,20 @@ const nav = [
     font-stretch: 80%;
     letter-spacing: -0.01em;
     white-space: nowrap;
+  }
+  .who {
+    display: grid;
+  }
+  .hint {
+    margin-top: 0.2rem;
+    font: 500 0.58rem/1 var(--mono);
+    font-stretch: normal;
+    letter-spacing: 0.02em;
+    color: var(--faint);
+    transition: color 0.15s;
+  }
+  .mark:hover .hint {
+    color: var(--accent);
   }
   nav {
     display: flex;

@@ -39,6 +39,7 @@
 
 <script>
   import { createIndex, type Doc, type Hit } from './search';
+  import { sfx, soundOn, setSound } from '@/lib/sfx';
 
   const dlg = document.getElementById('palette') as HTMLDialogElement;
   const q = document.getElementById('pal-q') as HTMLInputElement;
@@ -102,6 +103,12 @@
     if (d.a === 'theme') {
       dlg.close();
       document.getElementById('theme-toggle')?.click();
+      return;
+    }
+    if (d.a === 'sound') {
+      dlg.close();
+      setSound(!soundOn());
+      sfx.toggle();
       return;
     }
     if (!d.h) return;

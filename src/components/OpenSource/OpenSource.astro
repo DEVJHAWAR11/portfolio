@@ -54,7 +54,7 @@ const palettes = [
               <svg viewBox="-6 -6 12 12" width="13" height="13" aria-hidden="true">
                 <path d="M0 0 L4.6 2.7 A5.3 5.3 0 1 1 4.6 -2.7 Z" fill="currentColor" />
               </svg>
-                Play Pac-Man
+                <span class="w">Play</span> Pac-Man
               </button>
             </div>
           </div>
@@ -281,15 +281,42 @@ const palettes = [
     align-items: center;
     gap: 0.5rem;
   }
-  /* Replay and Pac-Man stay side by side; on a narrow phone they drop below the colours together. */
+  /* Colours, Replay and Pac-Man share one line; on a phone everything tightens up to fit it. */
   .play {
     display: flex;
     gap: 0.5rem;
   }
-  @media (max-width: 420px) {
-    .play .btn {
-      padding: 0 0.65rem;
+  @media (max-width: 480px) {
+    .acts {
+      flex-wrap: nowrap;
+      gap: 0.4rem;
     }
+    .acts .heat {
+      gap: 0;
+      margin-right: 0;
+    }
+    .acts .heat button {
+      padding: 4px;
+    }
+    .play {
+      gap: 0.4rem;
+    }
+    .play .btn {
+      padding: 0 0.6rem;
+    }
+    .pacbtn .w {
+      display: none;
+    }
+  }
+  @media (max-width: 360px) {
+    .acts .heat button {
+      padding: 3px;
+    }
+    .pacbtn svg {
+      display: none;
+    }
+  }
+  @media (max-width: 420px) {
     .ahead .years button {
       padding: 0.4rem 0.55rem;
       font-size: 0.72rem;
