@@ -279,6 +279,24 @@ h3 {
   opacity: 1;
 }
 
+/* Section fade-up, driven by src/lib/reveal.ts: the heading first, the content a beat after. */
+section[data-in] > * {
+  transition: opacity 0.6s var(--ease), translate 0.6s var(--ease);
+}
+section[data-in] > :not(.head) {
+  transition-delay: 0.1s;
+}
+section[data-in='no'] > * {
+  opacity: 0;
+  translate: 0 14px;
+}
+@media print {
+  section[data-in] > * {
+    opacity: 1 !important;
+    translate: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

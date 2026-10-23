@@ -10,6 +10,10 @@ links:
   github: https://github.com/DEVJHAWAR11/Tidyflow
   live: https://github.com/DEVJHAWAR11/Tidyflow/releases/latest
 interaction: tidy
+gallery:
+  - { file: 1-plan.jpg, caption: "The proposed folders, built from what is inside the files. Nothing moves yet." }
+  - { file: 2-review.jpg, caption: "Review where each file will go. Unsure files wait for you." }
+  - { file: 3-done.jpg, caption: "Done: files copied into new folders, originals untouched, and one click to undo." }
 highlights: ["Reads file contents, with on-device OCR (Apple Vision on macOS, PaddleOCR on Windows)", "Copies by default, verifies every copy with SHA-256, never overwrites", "Undo checks each file's hash before removing anything", "Works with no API key by falling back to rules and file types"]
 hard: "Sorting files by what's inside them without ever losing one. Text is extracted, with on-device OCR for scans, and the folder plan is built from the actual files. Only moves above 0.85 confidence happen on their own and the rest wait for review. Every copy is verified with SHA-256 and never overwrites, and undo re-checks the hashes before removing anything."
 numbers:

@@ -11,6 +11,10 @@ links:
   live: https://policylens-devj-web.onrender.com/
 health: https://policylens-devj-web.onrender.com/
 interaction: policy
+gallery:
+  - { file: 1-citations.jpg, caption: "Each sentence of an answer links to the clause and page it came from." }
+  - { file: 2-features.jpg, caption: "Questions, summaries and comparing policies side by side." }
+  - { file: 3-pipeline.jpg, caption: "The retrieval pipeline, from PDF to structure-aware chunks and embeddings." }
 highlights: ["Hybrid search: pgvector plus BM25 merged by reciprocal-rank fusion, then a reranker keeps the best 4 passages", "On a 28-question eval, the current version found evidence for 24/24 answerable questions and handled 4/4 not-in-document cases", "Postgres is the ingest job queue, claimed with FOR UPDATE SKIP LOCKED", "Clicking a source chip opens the PDF at the page with the clause highlighted"]
 diagram:
   nodes:

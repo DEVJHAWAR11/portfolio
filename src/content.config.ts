@@ -25,6 +25,8 @@ const projects = defineCollection({
     // Figures stated in the repo itself (evals, tests, limits), each with where it comes from.
     numbers: z.array(z.object({ value: z.string(), label: z.string(), src: z.string().optional() })).default([]),
     interaction: z.string().optional(),
+    // More screenshots, in src/assets/projects/<slug>/<file>, shown under the cover on the case study.
+    gallery: z.array(z.object({ file: z.string(), caption: z.string() })).default([]),
     diagram: z
       .object({
         nodes: z.array(

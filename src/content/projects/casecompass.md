@@ -11,6 +11,10 @@ links:
   live: https://case-compass-zeta.vercel.app
 health: https://casecompass-qw3v.onrender.com/health
 interaction: rrf
+gallery:
+  - { file: 1-search.jpg, caption: "Search starts with the dispute in your own words." }
+  - { file: 2-index.jpg, caption: "The problem it answers, and what the index holds." }
+  - { file: 3-how-it-searches.jpg, caption: "How it searches: plain words rewritten into legal terms, meaning and keyword search fused, every claim cited." }
 highlights: ["627 consumer-commission judgments across ten categories, with citation edges", "Hybrid search (HNSW vectors plus tsvector) merged with RRF; shipped setup reached hit@5 1.00 and MRR 0.96 on 27 airline stories", "No AI writes the answer at search time: outcome counts are computed in code and the order sentence is quoted", "Outcome labels are about 71-78% accurate on blind samples, reported openly"]
 hard: "Matching a layperson's story to consumer-court judgments written in legal language, without letting a model invent outcomes. One small LLM call rewrites the query, then keyword and vector search are merged with Reciprocal Rank Fusion over late-chunked embeddings. Outcomes come from an offline extraction step plus code rules, and the counts are computed in code."
 numbers:

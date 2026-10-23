@@ -11,6 +11,11 @@ links:
   live: https://watch-tower-seven.vercel.app
 health: https://watch-tower-seven.vercel.app
 interaction: watch
+gallery:
+  - { file: 1-how-it-works.jpg, caption: "How it works: describe it, the agent sets up the watch, checks run quietly, and you get one alert." }
+  - { file: 2-live-log.jpg, caption: "The live log of a check: fetch, compare with the last snapshot, rules, then the AI judge with its confidence." }
+  - { file: 3-alert.jpg, caption: "What an alert looks like: the details pulled from the page, its source, and a follow-up waiting for approval." }
+  - { file: 4-api.jpg, caption: "Everything in the app is also a JSON API with webhooks." }
 highlights: ["Evaluation runs a cost ladder: hash gate, learned noise filter, rules, triage model, then the judge model only when needed", "The judge must return a verbatim evidence quote, which is checked against the page and rejected if missing", "Public watches share one fetch and one follow-up across every subscriber", "SSRF guard resolves DNS at connect time and connects to the exact IP it checked"]
 hard: "Deciding whether a changed page really meets a plain-English condition without paying for an LLM call on every check. Each check walks a cost ladder and stops as early as it can, and the judge at the top has to quote the page word for word, which is verified before any alert goes out. If the model is down or over budget, the run is deferred instead of guessed."
 numbers:
