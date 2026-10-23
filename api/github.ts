@@ -1,6 +1,6 @@
 // Fresh GitHub data for the open source section, cached on Vercel's CDN for an hour.
 // GITHUB_TOKEN, if set in the Vercel environment, stays here on the server.
-import { fetchGitHub } from '../src/lib/github';
+import { fetchGitHub } from '../src/lib/github.js';
 
 export async function GET() {
   try {
