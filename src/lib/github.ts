@@ -2,7 +2,7 @@
 // The token is optional, read from the server environment only, and never reaches the browser.
 // Imports here stay relative so the function bundler can follow them without the @/ alias.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import profile from '../data/profile.json';
+import profile from '../data/profile.json' with { type: 'json' };
 
 export type PRState = 'merged' | 'open' | 'closed';
 export interface PR {

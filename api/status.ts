@@ -1,5 +1,5 @@
 // Live health of every demo, cached on Vercel's CDN for five minutes so visits don't each wake a server.
-import { checkAll, type Target } from '../src/lib/health';
+import { checkAll, type Target } from '../src/lib/health.js';
 
 export async function GET(req: Request) {
   try {
