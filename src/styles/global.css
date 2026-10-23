@@ -350,11 +350,11 @@ section[data-pod='up'] .pod {
   }
 }
 
-/* Easter egg toast, built in src/lib/eggs.ts. */
+/* Easter egg toast, built in src/lib/eggs.ts. Top right under the header, clear of inputs and the keyboard. */
 .egg-toast {
   position: fixed;
-  left: var(--gutter);
-  bottom: 1rem;
+  right: var(--gutter);
+  top: calc(3.75rem + 0.75rem);
   z-index: 60;
   display: grid;
   gap: 0.2rem;
@@ -369,7 +369,7 @@ section[data-pod='up'] .pod {
   color: var(--muted);
   pointer-events: none;
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateY(-8px);
   transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
 }
 .egg-toast b {

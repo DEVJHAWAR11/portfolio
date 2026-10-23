@@ -28,11 +28,14 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
     </header>
 
     <div class="term mono" data-term data-cli={JSON.stringify(data)}>
-      <div class="out" data-out aria-live="polite"></div>
-      <form data-form autocomplete="off">
-        <label for="cli-in"><span class="who">visitor@devjhawar</span>:<span class="dir">~</span>$</label>
-        <input id="cli-in" name="cmd" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go" aria-label="Command" />
-      </form>
+      <!-- The prompt sits right after the last line, like a real terminal, and the two scroll together. -->
+      <div class="screen" data-screen>
+        <div class="out" data-out aria-live="polite"></div>
+        <form data-form autocomplete="off">
+          <label for="cli-in"><span class="who">visitor@devjhawar</span>:<span class="dir">~</span>$</label>
+          <input id="cli-in" name="cmd" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go" placeholder="type help and press Enter" aria-label="Command" />
+        </form>
+      </div>
     </div>
     <div class="chips" role="group" aria-label="Quick commands">
       {chips.map((c) => <button type="button" class="mono" data-run={c}>{c}</button>)}
@@ -55,6 +58,7 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
   };
 
   const term = document.querySelector<HTMLElement>('[data-term]')!;
+  const screen = term.querySelector<HTMLElement>('[data-screen]')!;
   const out = term.querySelector<HTMLElement>('[data-out]')!;
   const form = term.querySelector<HTMLFormElement>('[data-form]')!;
   const input = form.querySelector('input')!;
@@ -263,7 +267,9 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
       unlock('cli');
       await c.run(args);
     } else print(`command not found: ${name}. Type help.`);
-    out.scrollTop = out.scrollHeight;
+    screen.scrollTop = screen.scrollHeight;
+    // Keep the prompt on screen once the terminal has grown to full height.
+    term.scrollIntoView({ block: 'nearest' });
   }
 
   form.addEventListener('submit', (e) => {
@@ -342,11 +348,12 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
     line-height: 1.55;
     cursor: text;
   }
-  .out {
-    height: min(60vh, 32rem);
+  .screen {
+    min-height: 12rem;
+    max-height: min(60vh, 32rem);
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 1rem 1.1rem 0.4rem;
+    padding: 1rem 1.1rem 1rem;
   }
   .out :global(p) {
     margin: 0 0 0.15rem;
@@ -393,8 +400,7 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.55rem 1.1rem 0.8rem;
-    border-top: 1px dashed var(--edge);
+    margin-top: 0.7rem;
   }
   label {
     white-space: nowrap;
@@ -417,6 +423,9 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
     color: var(--fg);
     caret-color: var(--accent);
     outline: none;
+  }
+  input::placeholder {
+    color: var(--faint);
   }
   .term:focus-within {
     border-color: var(--accent);
@@ -442,11 +451,8 @@ const chips = ['help', 'whoami', 'neofetch', 'ls projects', 'prs', 'contact'];
     .term {
       font-size: 0.74rem;
     }
-    .out {
-      padding: 0.8rem 0.8rem 0.3rem;
-    }
-    form {
-      padding: 0.5rem 0.8rem 0.7rem;
+    .screen {
+      padding: 0.8rem;
     }
     .who {
       display: none;
