@@ -43,6 +43,41 @@
   color-scheme: dark;
 }
 
+/* Accents a visitor can pick from the header (blue above is the default). Light values hold 4.5:1 on the paper
+   and under white text; dark values sit on the ink with dark text on top, as the default does. */
+:root[data-accent='violet'] {
+  --accent: #6b2fd6;
+  --accent-soft: rgb(107 47 214 / 0.09);
+}
+:root[data-accent='rose'] {
+  --accent: #c4234f;
+  --accent-soft: rgb(196 35 79 / 0.09);
+}
+:root[data-accent='amber'] {
+  --accent: #9a4d00;
+  --accent-soft: rgb(154 77 0 / 0.09);
+}
+:root[data-accent='teal'] {
+  --accent: #08705f;
+  --accent-soft: rgb(8 112 95 / 0.09);
+}
+:root[data-theme='dark'][data-accent='violet'] {
+  --accent: #b48cff;
+  --accent-soft: rgb(180 140 255 / 0.12);
+}
+:root[data-theme='dark'][data-accent='rose'] {
+  --accent: #ff7a9c;
+  --accent-soft: rgb(255 122 156 / 0.12);
+}
+:root[data-theme='dark'][data-accent='amber'] {
+  --accent: #ffb547;
+  --accent-soft: rgb(255 181 71 / 0.12);
+}
+:root[data-theme='dark'][data-accent='teal'] {
+  --accent: #3fd0bf;
+  --accent-soft: rgb(63 208 191 / 0.12);
+}
+
 *,
 *::before,
 *::after {

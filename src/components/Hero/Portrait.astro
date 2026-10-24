@@ -1,70 +1,38 @@
 ---
-// My photo as halftone dots (built by /halftone.svg). The dots are a CSS mask, so they take the theme's colours.
-// A warm copy shows through a circle that follows the cursor, or moves to where you tap on a phone.
+// My photo as halftone dots (built by /halftone.svg, and /halftone-dark.svg for the dark theme). The dots are a CSS
+// mask, so they take the theme's colours.
+// With motion allowed, src/lib/portrait.ts redraws them on a canvas: they gather out of the page's dot grid once a
+// session and lean away from the cursor. The mask copy stays underneath as the fallback.
 ---
 
 <div class="portrait" data-portrait role="img" aria-label="Portrait of Dev Jhawar, drawn in dots">
   <div class="layer ink"></div>
-  <div class="layer hot"></div>
   <span class="plus a" aria-hidden="true"></span>
   <span class="plus b" aria-hidden="true"></span>
   <span class="mono note n1" aria-hidden="true">Agents<br />Retrieval<br />Backend</span>
   <span class="mono note n2" aria-hidden="true">Plan<br />Search<br />Cite<br />Ship</span>
 </div>
+<!-- Before paint: if the dots are about to gather, hide the still copy so it doesn't flash first. -->
+<script is:inline>
+  (function () {
+    var el = document.currentScript.previousElementSibling;
+    try {
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !sessionStorage.getItem('portrait-built'))
+        el.dataset.assemble = '';
+    } catch (e) {}
+  })();
+</script>
 
 <script>
+  import { livePortrait } from '@/lib/portrait';
   const el = document.querySelector<HTMLElement>('[data-portrait]');
-  if (el) {
-    const moveTo = (e: { clientX: number; clientY: number }) => {
-      const r = el.getBoundingClientRect();
-      el.style.setProperty('--x', `${((e.clientX - r.left) / r.width) * 100}%`);
-      el.style.setProperty('--y', `${((e.clientY - r.top) / r.height) * 100}%`);
-    };
-    if (matchMedia('(hover: hover)').matches) {
-      let raf = 0;
-      el.addEventListener('pointermove', (e) => {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(() => moveTo(e));
-      });
-      el.addEventListener('pointerleave', () => {
-        el.style.removeProperty('--x');
-        el.style.removeProperty('--y');
-      });
-    } else {
-      // On a phone the circle glides to wherever you tap. It only listens for taps, so scrolling over the photo works as usual.
-      el.classList.add('tap');
-      el.addEventListener('click', moveTo);
-    }
-  }
+  if (el && !matchMedia('(prefers-reduced-motion: reduce)').matches) livePortrait(el);
 </script>
 
 <style>
-  /* Registered so a tap can animate the circle's position. */
-  @property --x {
-    syntax: '<percentage>';
-    inherits: true;
-    initial-value: 70%;
-  }
-  @property --y {
-    syntax: '<percentage>';
-    inherits: true;
-    initial-value: 84%;
-  }
-  .portrait.tap {
-    transition: --x 0.45s var(--ease), --y 0.45s var(--ease);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .portrait.tap {
-      transition: none;
-    }
-  }
   .portrait {
     position: relative;
     aspect-ratio: 1;
-    --sun: linear-gradient(150deg, #f29a12 10%, #e2365b 90%);
-  }
-  :global([data-theme='dark']) .portrait {
-    --sun: linear-gradient(150deg, #ffc35a 10%, #ff5d7a 90%);
   }
   .layer {
     position: absolute;
@@ -75,16 +43,20 @@
   .ink {
     background: var(--fg);
   }
-  .hot {
-    background: var(--sun);
-    -webkit-mask-image: url('/halftone.svg'), radial-gradient(circle at var(--x, 70%) var(--y, 84%), #000 15%, transparent 15.3%);
-    mask-image: url('/halftone.svg'), radial-gradient(circle at var(--x, 70%) var(--y, 84%), #000 15%, transparent 15.3%);
-    -webkit-mask-size: contain, 100% 100%;
-    mask-size: contain, 100% 100%;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-composite: source-in;
-    mask-composite: intersect;
+  :global([data-theme='dark']) .layer {
+    -webkit-mask-image: url('/halftone-dark.svg');
+    mask-image: url('/halftone-dark.svg');
+  }
+  .portrait:global(.live) .ink,
+  .portrait[data-assemble] .ink {
+    visibility: hidden;
+  }
+  .portrait :global(canvas.live) {
+    position: absolute;
+    inset: -10%;
+    width: 120%;
+    height: 120%;
+    pointer-events: none;
   }
   .plus.a {
     top: -7px;
@@ -113,6 +85,13 @@
     border-left: 2px solid var(--accent);
   }
   @media (max-width: 640px) {
+    /* The canvas reaches past the box; on a phone the box is nearly full width, so keep it from widening the page. */
+    .portrait {
+      overflow-x: clip;
+    }
+    .plus.b {
+      left: 0;
+    }
     .n1 {
       left: 0;
     }

@@ -31,7 +31,7 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   let color = '';
   const readColor = () => (color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
   readColor();
-  new MutationObserver(() => (readColor(), wake())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  new MutationObserver(() => (readColor(), wake())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
 
   const ptr = { x: -1e4, y: -1e4, in: false };
   let glow = 0;
