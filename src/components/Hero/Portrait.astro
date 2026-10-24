@@ -2,7 +2,8 @@
 // My photo as halftone dots (built by /halftone.svg, and /halftone-dark.svg for the dark theme). The dots are a CSS
 // mask, so they take the theme's colours.
 // With motion allowed, src/lib/portrait.ts redraws them on a canvas: they gather out of the page's dot grid once a
-// session and lean away from the cursor. The mask copy stays underneath as the fallback.
+// session and lean away from the cursor. The mask copy stays underneath as the fallback, and is all that a lite device
+// (src/lib/lite.ts) shows until someone points at it.
 ---
 
 <div class="portrait" data-portrait role="img" aria-label="Portrait of Dev Jhawar, drawn in dots">
@@ -17,7 +18,9 @@
   (function () {
     var el = document.currentScript.previousElementSibling;
     try {
-      if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !sessionStorage.getItem('portrait-built'))
+      var n = navigator;
+      var lite = (n.connection && n.connection.saveData) || (n.deviceMemory || 8) < 4 || (n.hardwareConcurrency || 8) < 4;
+      if (!lite && !matchMedia('(prefers-reduced-motion: reduce)').matches && !sessionStorage.getItem('portrait-built'))
         el.dataset.assemble = '';
     } catch (e) {}
   })();
@@ -25,8 +28,12 @@
 
 <script>
   import { livePortrait } from '@/lib/portrait';
+  import { lite } from '@/lib/lite';
   const el = document.querySelector<HTMLElement>('[data-portrait]');
-  if (el && !matchMedia('(prefers-reduced-motion: reduce)').matches) livePortrait(el);
+  if (el && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (lite) el.addEventListener('pointerenter', () => livePortrait(el), { once: true });
+    else livePortrait(el);
+  }
 </script>
 
 <style>

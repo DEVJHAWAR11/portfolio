@@ -9,9 +9,8 @@ import { stackIcon } from '@/lib/stack-icon';
 interface Props {
   p: CollectionEntry<'projects'>;
   big?: boolean;
-  eager?: boolean;
 }
-const { p, big = false, eager = false } = Astro.props;
+const { p, big = false } = Astro.props;
 const d = p.data;
 
 // Screenshots live in src/assets/projects/<slug>.<ext>; a project without one gets a plain title cover.
@@ -33,8 +32,7 @@ const href = `/projects/${p.id}`;
           alt=""
           widths={[480, 800, 1200]}
           sizes={big ? '(min-width: 1100px) 720px, (min-width: 761px) 60vw, calc(100vw - 2rem)' : '(min-width: 1100px) 600px, (min-width: 761px) 50vw, calc(100vw - 2rem)'}
-          loading={eager ? 'eager' : 'lazy'}
-          fetchpriority={eager ? 'high' : 'auto'}
+          loading="lazy"
         />
       ) : (
         <span class="cover display">{d.title}</span>

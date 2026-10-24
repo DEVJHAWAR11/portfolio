@@ -80,11 +80,14 @@ const accents = [
   const time = document.getElementById('clock-time')!;
   const dot = document.getElementById('clock-dot')!;
   const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  let was: boolean | undefined;
   const tick = () => {
     const t = fmt.format(new Date());
     const h = Number(t.slice(0, 2));
     const awake = h >= 8 || h < 2;
     time.textContent = t;
+    if (awake === was) return;
+    was = awake;
     dot.className = `dot ${awake ? 'ok' : 'pend'}`;
     dot.parentElement!.title = awake ? 'My local time. Probably awake.' : 'My local time. Asleep, I reply in the morning.';
   };
