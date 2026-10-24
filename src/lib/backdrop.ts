@@ -1,12 +1,42 @@
-// The page's dot grid wakes up around the mouse, and a click or a tap sends a ripple through it.
-// Drawn on one fixed canvas behind everything, only while something is moving, and never catching a click.
-// On a phone only a still tap ripples (smaller), so scrolling never sets it off. Off with reduced motion.
+// The page's dot grid is never quite still: every so often a soft band of accent passes down the screen, like a
+// health check going over every dot. It keeps to the empty paper. Dots under text, buttons and pictures are mapped
+// out and never light, so nothing moves behind what you're reading. One fixed canvas behind everything, about
+// 30 frames a second, paused while the tab is hidden, and off with reduced motion.
 const GAP = 20; // matches the body's background-size, so these dots sit exactly on the printed ones
-const GLOW = 150;
-const RING = 36;
-const RIPPLE_MS = 1100;
-const RIPPLE_R = 520;
-const TAP_R = 240;
+const HEADER = 60; // the fixed header covers this much of the top
+const FPS = 30;
+const PERIOD = 13; // seconds between passes
+const BAND = 3; // rows lit either side of the band's centre
+const PEAK = 0.45; // brightest a dot gets
+// What counts as content: anything with words, a control, or a picture.
+const CONTENT =
+  'h1,h2,h3,h4,p,li,dt,dd,a,button,input,textarea,label,figure,img,svg,pre,table,blockquote,.chip,.tag,.note,[data-portrait]';
+
+// Which grid dots sit under content, in page coordinates. Rebuilt when the layout changes, never while scrolling.
+let cols = 0;
+let rows = 0;
+let blocked = new Uint8Array(0);
+function free(i: number, j: number) {
+  return i >= 0 && j >= 0 && i < cols && j < rows && !blocked[j * cols + i];
+}
+function mapContent() {
+  const root = document.documentElement;
+  cols = Math.ceil(root.scrollWidth / GAP);
+  rows = Math.ceil(root.scrollHeight / GAP);
+  blocked = new Uint8Array(cols * rows);
+  const sx = scrollX;
+  const sy = scrollY;
+  for (const el of document.querySelectorAll(CONTENT)) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    // A dot is covered if its centre falls within the element, plus a few pixels of breathing room.
+    const i0 = Math.max(0, Math.floor((r.left + sx - 6 - GAP / 2) / GAP) + 1);
+    const i1 = Math.min(cols - 1, Math.floor((r.right + sx + 6 - GAP / 2) / GAP));
+    const j0 = Math.max(0, Math.floor((r.top + sy - 6 - GAP / 2) / GAP) + 1);
+    const j1 = Math.min(rows - 1, Math.floor((r.bottom + sy + 6 - GAP / 2) / GAP));
+    for (let j = j0; j <= j1; j++) blocked.fill(1, j * cols + i0, j * cols + i1 + 1);
+  }
+}
 
 if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
   const canvas = document.createElement('canvas');
@@ -26,114 +56,63 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
   size();
-  addEventListener('resize', () => (size(), wake()));
 
   let color = '';
   const readColor = () => (color = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
   readColor();
-  new MutationObserver(() => (readColor(), wake())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
+  new MutationObserver(readColor).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-accent'],
+  });
 
-  const ptr = { x: -1e4, y: -1e4, in: false };
-  let glow = 0;
-  const ripples: { x: number; y: number; t0: number; max: number }[] = []; // page coordinates, so they scroll with the dots
+  let remap = 0;
+  const later = () => {
+    clearTimeout(remap);
+    remap = window.setTimeout(mapContent, 250);
+  };
+  mapContent();
+  addEventListener('resize', () => (size(), later()));
+  addEventListener('load', later);
+  new ResizeObserver(later).observe(document.body);
 
-  // Each dot within reach gets the strongest of the glow and any ripple passing over it.
-  function draw(now: number) {
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = color;
+  let last = 0;
+  let raf = 0;
+  const frame = (now: number) => {
+    raf = requestAnimationFrame(frame);
+    if (now - last < 1000 / FPS - 2) return;
+    last = now;
     const sx = scrollX;
     const sy = scrollY;
-    const live = ripples.map((r) => ({ x: r.x - sx, y: r.y - sy, rad: ((now - r.t0) / RIPPLE_MS) * r.max, fade: 1 - (now - r.t0) / RIPPLE_MS }));
-    const areas = [
-      glow > 0.01 && { x: ptr.x, y: ptr.y, reach: GLOW },
-      ...live.map((r) => ({ x: r.x, y: r.y, reach: r.rad + RING })),
-    ].filter(Boolean) as { x: number; y: number; reach: number }[];
-    const seen = new Set<number>();
-    for (const a of areas) {
-      const i0 = Math.floor((a.x - a.reach + sx) / GAP);
-      const i1 = Math.ceil((a.x + a.reach + sx) / GAP);
-      const j0 = Math.floor((a.y - a.reach + sy) / GAP);
-      const j1 = Math.ceil((a.y + a.reach + sy) / GAP);
+    const i0 = Math.floor(sx / GAP);
+    const i1 = Math.min(cols - 1, Math.ceil((sx + w) / GAP));
+    const j0 = Math.floor((sy + HEADER) / GAP);
+    const j1 = Math.min(rows - 1, Math.ceil((sy + h) / GAP));
+    // The band starts above the screen and leaves below it, so each pass enters and exits softly.
+    const c = j0 - BAND * 2 + (((now / 1000) % PERIOD) / PERIOD) * (j1 - j0 + BAND * 4);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = color;
+    for (let j = Math.max(j0, Math.floor(c - BAND)); j <= Math.min(j1, Math.ceil(c + BAND)); j++) {
+      const d = Math.abs(j - c) / BAND;
+      if (d >= 1) continue;
+      const y = j * GAP + GAP / 2 - sy;
+      if (y < HEADER) continue;
       for (let i = i0; i <= i1; i++) {
-        for (let j = j0; j <= j1; j++) {
-          const key = i * 100003 + j;
-          if (seen.has(key)) continue;
-          const x = i * GAP + GAP / 2 - sx;
-          const y = j * GAP + GAP / 2 - sy;
-          if (x < -4 || y < -4 || x > w + 4 || y > h + 4) continue;
-          let k = 0;
-          const dg = Math.hypot(x - ptr.x, y - ptr.y);
-          if (dg < GLOW) k = (1 - dg / GLOW) ** 2 * glow;
-          for (const r of live) {
-            const off = Math.abs(Math.hypot(x - r.x, y - r.y) - r.rad);
-            if (off < RING) k = Math.max(k, (1 - off / RING) * r.fade * 0.9);
-          }
-          if (k < 0.03) continue;
-          seen.add(key);
-          ctx.globalAlpha = Math.min(1, k);
-          ctx.beginPath();
-          ctx.arc(x, y, 1 + 2.4 * k, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        if (!free(i, j)) continue;
+        // A little fixed grain per dot, so the band reads as light on dots rather than a solid stripe.
+        const k = (1 - d) ** 2 * PEAK * (0.55 + 0.45 * Math.abs(Math.sin(i * 12.9898 + j * 78.233)));
+        if (k < 0.03) continue;
+        ctx.globalAlpha = k;
+        ctx.beginPath();
+        ctx.arc(i * GAP + GAP / 2 - sx, y, 1 + 2.2 * k, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
     ctx.globalAlpha = 1;
-  }
-
-  let running = false;
-  function tick(now: number) {
-    glow += ((ptr.in ? 1 : 0) - glow) * 0.12;
-    while (ripples.length && now - ripples[0].t0 > RIPPLE_MS) ripples.shift();
-    draw(now);
-    if (ptr.in || glow > 0.01 || ripples.length) requestAnimationFrame(tick);
-    else {
-      running = false;
-      ctx.clearRect(0, 0, w, h);
-    }
-  }
-  function wake() {
-    if (running) return;
-    running = true;
-    requestAnimationFrame(tick);
-  }
-
-  addEventListener(
-    'pointermove',
-    (e) => {
-      if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
-      ptr.x = e.clientX;
-      ptr.y = e.clientY;
-      ptr.in = true;
-      wake();
-    },
-    { passive: true },
-  );
-  document.addEventListener('mouseout', (e) => !e.relatedTarget && (ptr.in = false));
-  addEventListener('blur', () => (ptr.in = false));
-  addEventListener('scroll', () => ptr.in && wake(), { passive: true });
-  const ripple = (x: number, y: number, max: number) => {
-    if (ripples.length > 4) ripples.shift();
-    ripples.push({ x: x + scrollX, y: y + scrollY, t0: performance.now(), max });
-    wake();
   };
-  // A touch counts as a tap only if it lifts quickly without moving; a scroll cancels it.
-  let tap: { x: number; y: number; t: number } | null = null;
-  addEventListener(
-    'pointerdown',
-    (e) => {
-      if (e.pointerType === 'touch') tap = { x: e.clientX, y: e.clientY, t: performance.now() };
-      else ripple(e.clientX, e.clientY, RIPPLE_R);
-    },
-    { passive: true },
-  );
-  addEventListener(
-    'pointerup',
-    (e) => {
-      if (e.pointerType !== 'touch' || !tap) return;
-      if (performance.now() - tap.t < 300 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 10) ripple(e.clientX, e.clientY, TAP_R);
-      tap = null;
-    },
-    { passive: true },
-  );
-  addEventListener('pointercancel', () => (tap = null), { passive: true });
+  const run = () => {
+    cancelAnimationFrame(raf);
+    if (!document.hidden) raf = requestAnimationFrame(frame);
+  };
+  document.addEventListener('visibilitychange', run);
+  run();
 }
