@@ -1,21 +1,35 @@
 // The hero portrait, redrawn on a canvas so it can move. Once a session its dots gather out of the page's dot grid,
 // and after that they lean away from the cursor (or a tap on a phone), taking the accent colour while pushed.
 // The CSS-mask copy underneath stays the fallback: no JS, reduced motion, or a failed fetch all show it as before.
+
 const GRID = 20; // the body's background-size; its dots sit at 10px past every multiple of 20
 const BUILD_MS = 1800;
 const PAD = 0.1; // the canvas reaches this far past the box, so pushed and gathering dots aren't clipped
 const REACH = 0.14; // cursor reach, as a share of the portrait's width
 const KEY = 'portrait-built';
 const TAU = Math.PI * 2;
+const FILE = { light: '/halftone.svg', dark: '/halftone-dark.svg' };
+type Theme = keyof typeof FILE;
+const theme = (): Theme => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+// The SVG groups dots by size: <path stroke-width="<diameter>" d="M<cx> <cy>h0M...">. Returns [cx, cy, r] in
+// viewBox units, sorted by position, so both themes' files list the same cells in the same order.
+const dotsIn = (svg: string) => {
+  const dots: number[][] = [];
+  for (const [, width, d] of svg.matchAll(/stroke-width="([\d.]+)" d="([^"]+)"/g))
+    for (const [, x, y] of d.matchAll(/M(\d+) (\d+)/g)) dots.push([Number(x), Number(y), Number(width) / 2]);
+  return dots.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+};
 
 export async function livePortrait(el: HTMLElement) {
   const get = (url: string) =>
     fetch(url)
       .then((r) => (r.ok ? r.text() : ''))
       .catch(() => '');
-  const [svg, night] = await Promise.all([get('/halftone.svg'), get('/halftone-dark.svg')]);
+  // Only the current theme's dots; the mask has usually fetched that file already. The other set loads on a switch.
+  const first = theme();
+  const svg = await get(FILE[first]);
   const view = Number(/viewBox="0 0 (\d+)/.exec(svg)?.[1]);
-  const found = [...svg.matchAll(/cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"/g)];
+  const found = dotsIn(svg);
   if (!view || !found.length) {
     delete el.dataset.assemble;
     return;
@@ -26,14 +40,24 @@ export async function livePortrait(el: HTMLElement) {
   const bx = new Float32Array(n);
   const by = new Float32Array(n);
   const br = new Float32Array(n);
-  found.forEach((m, i) => {
-    bx[i] = Number(m[1]) / view;
-    by[i] = Number(m[2]) / view;
-    br[i] = Number(m[3]) / view;
+  found.forEach(([x, y, r], i) => {
+    bx[i] = x / view;
+    by[i] = y / view;
+    br[i] = r / view;
   });
-  // The dark theme's set has the same cells in the same order, only the radii differ.
-  const nightR = [...night.matchAll(/ r="([\d.]+)"/g)];
-  const brDark = nightR.length === n ? Float32Array.from(nightR, (m) => Number(m[1]) / view) : br;
+  // Both themes' sets have the same cells in the same order, only the radii differ.
+  const sets: Partial<Record<Theme, Float32Array>> = { [first]: br };
+  const radiiFor = (t: Theme) => {
+    if (sets[t]) return sets[t];
+    sets[t] = br; // until it arrives
+    get(FILE[t]).then((other) => {
+      const m = dotsIn(other);
+      if (m.length === n) sets[t] = Float32Array.from(m, (d) => d[2] / view);
+      readColors();
+      wake();
+    });
+    return br;
+  };
   const ox = new Float32Array(n); // current push, in px
   const oy = new Float32Array(n);
 
@@ -59,7 +83,7 @@ export async function livePortrait(el: HTMLElement) {
   let accent = '';
   let radii = br;
   const readColors = () => {
-    radii = document.documentElement.dataset.theme === 'dark' ? brDark : br;
+    radii = radiiFor(theme());
     const css = getComputedStyle(document.documentElement);
     ink = css.getPropertyValue('--fg').trim();
     accent = css.getPropertyValue('--accent').trim();
@@ -94,16 +118,23 @@ export async function livePortrait(el: HTMLElement) {
     wake();
   };
 
+  // A device that can't hold about 20 frames a second through the gathering, or needs over 12ms to draw one, skips to
+  // the end of it rather than keep the page busy.
+  let prev = 0;
+  let slow = 0;
   let ptr: { x: number; y: number } | null = null;
   const BANDS = 6; // alpha steps while gathering, each drawn as one path
   const frame = (now: number) => {
+    const began = performance.now();
     raf = 0;
     const s = size;
     const reach = s * REACH;
     let t = 1;
     if (build) {
       t = (now - build.t0) / BUILD_MS;
-      if (t >= 1) {
+      if (prev && now - prev > 50) slow++;
+      prev = now;
+      if (t >= 1 || slow >= 3) {
         build = null;
         t = 1;
         try {
@@ -159,6 +190,7 @@ export async function livePortrait(el: HTMLElement) {
     ctx.globalAlpha = 1;
     ctx.fillStyle = accent;
     ctx.fill(hot);
+    if (build && performance.now() - began > 12) slow++;
     if (moving) wake();
   };
   let raf = 0;

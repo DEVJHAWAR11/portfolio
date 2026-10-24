@@ -54,7 +54,9 @@ export async function halftoneSvg(file: string, { light = false } = {}): Promise
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  let dots = '';
+  // Each dot is a zero-length stroke with round caps, and dots of the same size share one path. That's a few dozen
+  // shapes for the browser to style and draw instead of thousands of <circle>s, and a much smaller file.
+  const bySize = new Map<number, string>();
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
       const my = Math.min(M - 1, Math.round(((y + 0.5) / N) * M));
@@ -62,9 +64,10 @@ export async function halftoneSvg(file: string, { light = false } = {}): Promise
       if (mask[my * M + mx] < 128) continue;
       const dark = light ? data[y * N + x] / 255 : 1 - data[y * N + x] / 255;
       // Radius from area, so a dot's ink matches the tone; the darkest dots just touch and merge.
-      const r = Math.max(0.65, Math.sqrt(Math.pow(dark, 1.3)) * 6.2);
-      dots += `<circle cx="${x * 10 + 5}" cy="${y * 10 + 5}" r="${r.toFixed(1)}"/>`;
+      const r = Math.round(Math.max(0.65, Math.sqrt(Math.pow(dark, 1.3)) * 6.2) * 10) / 10;
+      bySize.set(r, (bySize.get(r) ?? '') + `M${x * 10 + 5} ${y * 10 + 5}h0`);
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${N * 10} ${N * 10}">${dots}</svg>`;
+  const paths = [...bySize].map(([r, d]) => `<path stroke-width="${+(r * 2).toFixed(1)}" d="${d}"/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${N * 10} ${N * 10}"><g fill="none" stroke="#000" stroke-linecap="round">${paths}</g></svg>`;
 }
