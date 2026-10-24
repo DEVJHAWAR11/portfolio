@@ -46,9 +46,13 @@ const canonical = new URL(Astro.url.pathname.replace(/(index)?\.html$/, ''), Ast
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#ebeae4" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <!-- Theme before paint: the visitor's saved choice, else light paper. -->
+    <!-- Theme and accent before paint: the visitor's saved choices, else light paper and blue. -->
     <script is:inline>
-      try { document.documentElement.dataset.theme = localStorage.getItem('theme-v2') || 'light'; } catch {}
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem('theme-v2') || 'light';
+        var accent = localStorage.getItem('accent');
+        if (accent) document.documentElement.dataset.accent = accent;
+      } catch {}
     </script>
   </head>
   <body>

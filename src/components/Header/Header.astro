@@ -10,6 +10,15 @@ const nav = [
   { href: '/#writing', label: 'Writing' },
   { href: '/#contact', label: 'Contact' },
 ];
+
+// Accent colours a visitor can pick; the values live in global.css, these are only the swatches.
+const accents = [
+  { id: 'blue', label: 'Blue', light: '#2b37e6', dark: '#7d87ff' },
+  { id: 'violet', label: 'Violet', light: '#6b2fd6', dark: '#b48cff' },
+  { id: 'rose', label: 'Rose', light: '#c4234f', dark: '#ff7a9c' },
+  { id: 'amber', label: 'Amber', light: '#9a4d00', dark: '#ffb547' },
+  { id: 'teal', label: 'Teal', light: '#08705f', dark: '#3fd0bf' },
+];
 ---
 
 <header class="bar" data-noprint>
@@ -47,6 +56,18 @@ const nav = [
           <path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor" />
         </svg>
       </button>
+      <button class="sq" id="accent-btn" type="button" popovertarget="accents" aria-label="Choose an accent colour">
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+          {accents.slice(0, 4).map((a, i) => (
+            <rect x={i % 2 ? 8.5 : 1.5} y={i < 2 ? 1.5 : 8.5} width="6" height="6" style={`--c:${a.light};--cd:${a.dark}`} />
+          ))}
+        </svg>
+      </button>
+      <div class="accents" id="accents" popover aria-label="Accent colour">
+        {accents.map((a) => (
+          <button type="button" data-accent-pick={a.id} aria-label={a.label} title={a.label} aria-pressed="false" style={`--c:${a.light};--cd:${a.dark}`} />
+        ))}
+      </div>
       <a class="btn solid sm" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
     </div>
   </div>
@@ -116,6 +137,33 @@ const nav = [
       localStorage.setItem('theme-v2', next);
     } catch {}
   });
+
+  // Accent picker: a small popover under its button. The choice is saved, and the head script applies it before paint.
+  const accentBtn = document.getElementById('accent-btn')!;
+  const accents = document.getElementById('accents')!;
+  const picks = [...accents.querySelectorAll<HTMLButtonElement>('[data-accent-pick]')];
+  const syncAccent = () =>
+    picks.forEach((b) => b.setAttribute('aria-pressed', String((root.dataset.accent || 'blue') === b.dataset.accentPick)));
+  syncAccent();
+  accents.addEventListener('beforetoggle', (e) => {
+    if ((e as ToggleEvent).newState !== 'open') return;
+    const r = accentBtn.getBoundingClientRect();
+    accents.style.top = `${r.bottom + 8}px`;
+    accents.style.right = `${Math.max(8, innerWidth - r.right)}px`;
+  });
+  picks.forEach((b, i) =>
+    b.addEventListener('click', () => {
+      const id = b.dataset.accentPick!;
+      if (id === 'blue') delete root.dataset.accent;
+      else root.dataset.accent = id;
+      try {
+        if (id === 'blue') localStorage.removeItem('accent');
+        else localStorage.setItem('accent', id);
+      } catch {}
+      sfx.tick(i);
+      syncAccent();
+    }),
+  );
 </script>
 
 <style>
@@ -224,6 +272,41 @@ const nav = [
   .sq:hover {
     border-color: var(--fg);
   }
+  #accent-btn rect,
+  .accents button {
+    fill: var(--c);
+    background: var(--c);
+  }
+  :global([data-theme='dark']) #accent-btn rect,
+  :global([data-theme='dark']) .accents button {
+    fill: var(--cd);
+    background: var(--cd);
+  }
+  .accents {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    padding: 0.5rem;
+    border: 1px solid var(--fg);
+    background: var(--panel);
+    box-shadow: 5px 5px 0 color-mix(in srgb, var(--fg) 12%, transparent);
+    gap: 0.45rem;
+  }
+  .accents:popover-open {
+    display: flex;
+  }
+  .accents button {
+    width: 1.75rem;
+    height: 1.75rem;
+    transition: scale 0.15s var(--ease);
+  }
+  .accents button:hover {
+    scale: 1.1;
+  }
+  .accents button[aria-pressed='true'] {
+    outline: 2px solid var(--fg);
+    outline-offset: 2px;
+  }
   @media (max-width: 900px) {
     nav {
       display: none;
@@ -239,10 +322,19 @@ const nav = [
     .find kbd {
       display: none;
     }
-    .find {
-      width: 2.2rem;
+    /* Four controls and the name have to share a 375px phone. */
+    .right {
+      gap: 0.3rem;
+    }
+    .find,
+    .sq {
+      width: 2rem;
+      height: 2rem;
       padding: 0;
       justify-content: center;
+    }
+    .right .btn.sm {
+      padding: 0 0.6rem;
     }
   }
 </style>

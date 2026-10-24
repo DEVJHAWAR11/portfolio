@@ -2,12 +2,13 @@
 import path from 'node:path';
 import sharp from 'sharp';
 
-const N = 64; // dots per side; each cell is 10 units
-const M = 192; // resolution of the cut-out mask
+const N = 110; // dots per side; each cell is 10 units
+const M = 440; // resolution of the cut-out mask
 
 // Cut-out: dark pixels, or warm ones (skin, the shirt print), count as me.
 // The landscape behind is green or hazy blue-grey, so it fails both tests.
-async function personMask(file: string): Promise<Uint8Array> {
+// Returns a softened coverage map (255 = me), so the outline follows my shape instead of stepping.
+async function personMask(file: string): Promise<Buffer> {
   const { data: rgb } = await sharp(file).resize(M, M, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const person = new Uint8Array(M * M);
   for (let i = 0; i < M * M; i++) {
@@ -34,23 +35,34 @@ async function personMask(file: string): Promise<Uint8Array> {
     if (y > 0) seed(j - M);
     if (y < M - 1) seed(j + M);
   }
-  return bg;
+  const me = Buffer.from(bg.map((v) => (v ? 0 : 255)));
+  return sharp(me, { raw: { width: M, height: M, channels: 1 } }).blur(2.5).extractChannel(0).raw().toBuffer();
 }
 
-export async function halftoneSvg(file: string): Promise<string> {
+// By default a bigger dot means a darker spot, for dark ink on paper. With `light`, a bigger dot means a brighter
+// spot, for light ink on the dark theme, so I'm drawn as a positive there too rather than a photo negative.
+export async function halftoneSvg(file: string, { light = false } = {}): Promise<string> {
   const src = path.resolve(file);
-  const bg = await personMask(src);
-  const { data } = await sharp(src).greyscale().normalise().resize(N, N, { fit: 'fill' }).raw().toBuffer({ resolveWithObject: true });
+  const mask = await personMask(src);
+  // Local contrast first, so the smile, beard and glasses survive at this size.
+  const { data } = await sharp(src)
+    .greyscale()
+    .clahe({ width: 60, height: 60, maxSlope: 3 })
+    .normalise()
+    .resize(N, N, { fit: 'fill' })
+    .extractChannel(0)
+    .raw()
+    .toBuffer({ resolveWithObject: true });
 
-  const s = M / N;
   let dots = '';
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
-      let inside = 0;
-      for (let yy = 0; yy < s; yy++) for (let xx = 0; xx < s; xx++) inside += bg[(y * s + yy) * M + x * s + xx] ? 0 : 1;
-      if (inside / (s * s) < 0.5) continue;
-      const dark = 1 - data[y * N + x] / 255;
-      const r = Math.max(0.9, Math.pow(dark, 2.1) * 5.2);
+      const my = Math.min(M - 1, Math.round(((y + 0.5) / N) * M));
+      const mx = Math.min(M - 1, Math.round(((x + 0.5) / N) * M));
+      if (mask[my * M + mx] < 128) continue;
+      const dark = light ? data[y * N + x] / 255 : 1 - data[y * N + x] / 255;
+      // Radius from area, so a dot's ink matches the tone; the darkest dots just touch and merge.
+      const r = Math.max(0.65, Math.sqrt(Math.pow(dark, 1.3)) * 6.2);
       dots += `<circle cx="${x * 10 + 5}" cy="${y * 10 + 5}" r="${r.toFixed(1)}"/>`;
     }
   }
