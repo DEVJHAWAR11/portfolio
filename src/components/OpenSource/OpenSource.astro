@@ -709,6 +709,16 @@ const palettes = [
   [data-prs] :global(li[data-state='open'] .stop) {
     background: var(--panel);
     border: 2px solid var(--c);
+  }
+  /* An open PR's ring pulses. Only its scale and opacity move, so the page is never repainted for it. */
+  [data-prs] :global(li[data-state='open'] .stop)::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border: 4px solid color-mix(in srgb, var(--pend) 25%, transparent);
+    border-radius: 50%;
+    opacity: 0;
+    transform: scale(0.65);
     animation: wait 2s ease-in-out infinite;
   }
   [data-prs] :global(li[data-state='closed'] .stop) {
@@ -728,11 +738,13 @@ const palettes = [
   }
   @keyframes wait {
     50% {
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--pend) 25%, transparent);
+      opacity: 1;
+      transform: none;
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    [data-prs] :global(.stop) {
+    [data-prs] :global(.stop),
+    [data-prs] :global(.stop)::after {
       animation: none !important;
     }
   }

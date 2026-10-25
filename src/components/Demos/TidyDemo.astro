@@ -225,22 +225,31 @@ const files: File[] = [
     margin-bottom: 0.15rem;
     color: var(--muted);
   }
-  /* The step to click next pulses until it is clicked. */
+  /* The step to click next pulses until it is clicked: a halo behind it grows and fades. Only its scale and opacity
+     move, so the page is never repainted for it. */
   .steps .btn.solid:not(:disabled) {
+    position: relative;
+    isolation: isolate;
+  }
+  .steps .btn.solid:not(:disabled)::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    background: color-mix(in srgb, var(--accent) 55%, transparent);
+    pointer-events: none;
     animation: nudge 1.6s ease-out infinite;
   }
   @keyframes nudge {
-    0% {
-      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
-    }
     70%,
     100% {
-      box-shadow: 0 0 0 8px transparent;
+      opacity: 0;
+      transform: scale(1.12, 1.36);
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .steps .btn.solid:not(:disabled) {
-      animation: none;
+    .steps .btn.solid:not(:disabled)::after {
+      display: none;
     }
   }
   .steps .btn:disabled {

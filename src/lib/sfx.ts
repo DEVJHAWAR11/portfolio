@@ -23,12 +23,29 @@ function audio() {
   if (!soundOn()) return null;
   try {
     ctx ??= new AudioContext();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     return ctx;
   } catch {
     return null;
   }
 }
+
+// Opening the audio device takes 40 to 130ms, long enough to hold up the first click that plays a sound (the lamp,
+// usually). So it opens ahead of time, in a quiet moment once someone first moves, scrolls or presses a key, and the
+// click only has to resume it.
+const signs = ['pointermove', 'pointerdown', 'keydown', 'scroll'] as const;
+const warm = () => {
+  signs.forEach((e) => removeEventListener(e, warm, true));
+  const open = () => {
+    if (!soundOn() || ctx) return;
+    try {
+      ctx = new AudioContext();
+    } catch {}
+  };
+  if ('requestIdleCallback' in window) requestIdleCallback(open, { timeout: 1500 });
+  else setTimeout(open, 200);
+};
+if (typeof window !== 'undefined') signs.forEach((e) => addEventListener(e, warm, { capture: true, passive: true }));
 
 // A short pitched note with a fast attack and an exponential tail.
 function tone(freq: number, ms: number, { type = 'sine', vol = 0.15, to, at = 0 }: { type?: OscillatorType; vol?: number; to?: number; at?: number } = {}) {
