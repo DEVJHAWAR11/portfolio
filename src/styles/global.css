@@ -321,6 +321,40 @@ main > .span {
   contain-intrinsic-size: auto 1200px;
 }
 
+/* Opening: on the home page the header, then the headline word by word, then the rest of the hero come in one after
+   another. Each piece's own delay is --d. While the intro covers the page (Intro.astro) they wait, and start as it
+   lifts. Set up by the head script in Base.astro, so without it, or with reduced motion, everything is simply there. */
+:root[data-enter] [data-step] {
+  animation: intro-rise 0.7s var(--ease) calc(0.05s + var(--d, 0s)) both;
+}
+:root[data-intro=''] [data-step] {
+  animation-play-state: paused;
+}
+:root[data-enter] .bar[data-step] {
+  animation-name: intro-drop;
+}
+:root[data-enter] .w > [data-step] {
+  display: inline-block;
+  animation-name: intro-word;
+  animation-duration: 0.8s;
+}
+@keyframes intro-rise {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+  }
+}
+@keyframes intro-drop {
+  from {
+    translate: 0 -100%;
+  }
+}
+@keyframes intro-word {
+  from {
+    translate: 0 105%;
+  }
+}
+
 /* Section fade-up, driven by src/lib/reveal.ts: the heading first, the content a beat after. */
 section[data-in] > * {
   transition: opacity 0.6s var(--ease), translate 0.6s var(--ease);
@@ -537,3 +571,13 @@ section[data-pod='up'] .pod {
   }
 }
 
+/* Switching the theme, the light spreads out of the header's lamp or shrinks back into it (Header.astro), in place of
+   the default crossfade. Switching off, the old (lit) page sits on top to shrink away. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root[data-vt='dark']::view-transition-old(root) {
+  z-index: 1;
+}

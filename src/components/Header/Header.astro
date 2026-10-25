@@ -21,7 +21,7 @@ const accents = [
 ];
 ---
 
-<header class="bar" data-noprint>
+<header class="bar" data-noprint data-step>
   <div class="inner">
     <a href="/" class="mark">
       <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
@@ -46,16 +46,6 @@ const accents = [
         <span class="lbl">Search</span>
         <kbd class="mono" id="find-key">Ctrl K</kbd>
       </button>
-      <span class="clock mono" title="My local time in Bhubaneswar">
-        <span class="dot ok" id="clock-dot"></span>
-        <span id="clock-time">--:--:--</span> IST
-      </span>
-      <button class="sq" id="theme-toggle" type="button" aria-label="Switch to dark theme">
-        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-          <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3" />
-          <path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor" />
-        </svg>
-      </button>
       <button class="sq" id="accent-btn" type="button" popovertarget="accents" aria-label="Choose an accent colour">
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
           {accents.slice(0, 4).map((a, i) => (
@@ -69,30 +59,73 @@ const accents = [
         ))}
       </div>
       <a class="btn solid sm" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
+      <div class="lamp" id="lamp">
+        <button id="theme-toggle" type="button" aria-label="Switch to dark theme"></button>
+        <!-- What you grab: the knob's spot, but bigger, and an HTML box so touch-action stops a drag from scrolling. -->
+        <span class="grip" aria-hidden="true"></span>
+        <!-- A pendant lamp hung from the top of the header, with a pull cord: lit for light, off for dark. -->
+        <svg class="rig" viewBox="-80 0 160 480" width="160" height="480" aria-hidden="true">
+          <defs>
+            <radialGradient id="lamp-glow">
+              <stop offset="0" stop-color="#ffc45c" stop-opacity="0.6" />
+              <stop offset="0.35" stop-color="#ffc45c" stop-opacity="0.25" />
+              <stop offset="1" stop-color="#ffc45c" stop-opacity="0" />
+            </radialGradient>
+            <!-- Brushed metal, lit from the upper left. The stop colours change with the theme (below). -->
+            <linearGradient id="lamp-metal" x1="0" x2="1">
+              <stop offset="0" class="m0" />
+              <stop offset="0.28" class="m1" />
+              <stop offset="0.62" class="m2" />
+              <stop offset="1" class="m3" />
+            </linearGradient>
+            <radialGradient id="lamp-in" cy="0.15" r="0.95">
+              <stop offset="0" stop-color="#fffbea" />
+              <stop offset="0.45" stop-color="#ffd27a" />
+              <stop offset="1" stop-color="#e8892a" />
+            </radialGradient>
+            <radialGradient id="lamp-bulb" cx="0.45" cy="0.4" r="0.7">
+              <stop offset="0" stop-color="#fff" />
+              <stop offset="0.5" stop-color="#ffeaa8" />
+              <stop offset="1" stop-color="#ffb13d" />
+            </radialGradient>
+            <radialGradient id="lamp-glass" cx="0.38" cy="0.32" r="0.75">
+              <stop offset="0" stop-color="#9aa0a9" />
+              <stop offset="1" stop-color="#2c3036" />
+            </radialGradient>
+            <radialGradient id="lamp-bead" cx="0.35" cy="0.3" r="0.75">
+              <stop offset="0" stop-color="#ffe6b0" />
+              <stop offset="0.5" stop-color="#e39a35" />
+              <stop offset="1" stop-color="#8f5410" />
+            </radialGradient>
+          </defs>
+          <path class="wire" d="M0 0V13" />
+          <g class="head">
+            <circle class="glow" cx="0" cy="35" r="46" fill="url(#lamp-glow)" />
+            <rect x="-2.6" y="11.5" width="5.2" height="6" rx="1.2" fill="url(#lamp-metal)" />
+            <path d="M0 16C-7 16-10.2 21-12 32h24C10.2 21 7 16 0 16Z" fill="url(#lamp-metal)" />
+            <path class="sheen" d="M-3.8 18.3C-6.6 19.8-8.3 23.5-9.5 29" />
+            <ellipse class="mouth" cx="0" cy="32" rx="12" ry="2.4" />
+            <circle class="bulb" cx="0" cy="33.4" r="3.7" />
+            <ellipse class="spec" cx="-1.3" cy="32.2" rx="1.1" ry="0.75" />
+          </g>
+          <path class="cord" d="M0 37V67" />
+          <g class="knob" transform="translate(0 67)">
+            <rect class="crimp" x="-1.1" y="-1.5" width="2.2" height="2.6" rx="0.6" />
+            <circle class="bead" cx="0" cy="4.4" r="4.2" />
+          </g>
+          <g class="piece" style="display: none">
+            <path />
+            <circle class="bead" cx="0" cy="4.4" r="4.2" />
+          </g>
+        </svg>
+      </div>
     </div>
   </div>
 </header>
 
 <script>
   import { sfx } from '@/lib/sfx';
-
-  // Clock in my timezone; the dot goes amber when I'm probably asleep.
-  const time = document.getElementById('clock-time')!;
-  const dot = document.getElementById('clock-dot')!;
-  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  let was: boolean | undefined;
-  const tick = () => {
-    const t = fmt.format(new Date());
-    const h = Number(t.slice(0, 2));
-    const awake = h >= 8 || h < 2;
-    time.textContent = t;
-    if (awake === was) return;
-    was = awake;
-    dot.className = `dot ${awake ? 'ok' : 'pend'}`;
-    dot.parentElement!.title = awake ? 'My local time. Probably awake.' : 'My local time. Asleep, I reply in the morning.';
-  };
-  tick();
-  setInterval(tick, 1000);
+  import { lamp } from '@/lib/lamp';
 
   if (/Mac|iPhone|iPad/.test(navigator.platform)) document.getElementById('find-key')!.textContent = '⌘K';
 
@@ -123,10 +156,12 @@ const accents = [
   });
 
   const root = document.documentElement;
-  const btn = document.getElementById('theme-toggle')!;
+  const btn = document.getElementById('theme-toggle') as HTMLButtonElement;
   const sync = () => btn.setAttribute('aria-label', root.dataset.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
   sync();
-  btn.addEventListener('click', () => {
+  // The theme is a lamp with a pull cord, and pulled too far the cord snaps; see src/lib/lamp.ts. Switching on, the
+  // light spreads out of the bulb over the page; switching off, it shrinks back into it.
+  lamp(document.getElementById('lamp')!, ({ x, y }) => {
     const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
     sfx.toggle();
     const apply = () => {
@@ -134,8 +169,23 @@ const accents = [
       sync();
     };
     const vt = (document as any).startViewTransition;
-    if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) vt.call(document, apply);
-    else apply();
+    if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      root.dataset.vt = next;
+      const t = vt.call(document, apply);
+      t.ready
+        .then(() => {
+          const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+          const light = [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`];
+          const reveal = root.animate(
+            { clipPath: next === 'light' ? light : light.reverse() },
+            { duration: 600, easing: 'cubic-bezier(0.55, 0, 0.2, 1)', fill: 'forwards', pseudoElement: `::view-transition-${next === 'light' ? 'new' : 'old'}(root)` },
+          );
+          // Held at its end until the transition is over, then dropped, or the next one would start clipped.
+          t.finished.finally(() => reveal.cancel());
+        })
+        .catch(() => {});
+      t.finished.finally(() => delete root.dataset.vt);
+    } else apply();
     try {
       localStorage.setItem('theme-v2', next);
     } catch {}
@@ -232,13 +282,6 @@ const accents = [
     align-items: center;
     gap: 0.5rem;
   }
-  .clock {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    margin-right: 0.4rem;
-    color: var(--muted);
-  }
   .find {
     display: inline-flex;
     align-items: center;
@@ -274,6 +317,158 @@ const accents = [
   }
   .sq:hover {
     border-color: var(--fg);
+  }
+  /* The theme switch: a lamp hung from the top of the header, drawn past its own slot (src/lib/lamp.ts). */
+  .lamp {
+    --slot: 2.2rem;
+    position: relative;
+    margin-left: 0.6rem;
+    width: var(--slot);
+    height: var(--slot);
+  }
+  #theme-toggle {
+    width: 100%;
+    height: 100%;
+    background: none;
+  }
+  .rig {
+    position: absolute;
+    top: calc((var(--slot) - 3.75rem) / 2); /* the top of the header */
+    left: 50%;
+    width: 160px;
+    max-width: none;
+    height: 480px;
+    margin-left: -80px;
+    overflow: visible;
+    pointer-events: none;
+    will-change: transform; /* its own layer, so a swinging lamp doesn't repaint the blurred header */
+  }
+  .wire,
+  .cord,
+  .piece path {
+    fill: none;
+    stroke-linecap: round;
+  }
+  .wire {
+    stroke: var(--fg);
+    stroke-width: 1.2;
+    opacity: 0.6;
+  }
+  /* A brass chain cord with a bead on the end. */
+  .cord,
+  .piece path {
+    --brass: #b57722;
+    stroke: var(--brass);
+    stroke-width: 1.6;
+  }
+  .cord.taut {
+    stroke: var(--accent);
+  }
+  .bead {
+    fill: url(#lamp-bead);
+  }
+  .crimp {
+    fill: url(#lamp-metal);
+  }
+  /* Dark steel on the light page; white enamel on the dark one. */
+  .m0 {
+    stop-color: #16181c;
+  }
+  .m1 {
+    stop-color: #6c727c;
+  }
+  .m2 {
+    stop-color: #2b2f36;
+  }
+  .m3 {
+    stop-color: #0c0d10;
+  }
+  :global([data-theme='dark']) .m0 {
+    stop-color: #c4cad3;
+  }
+  :global([data-theme='dark']) .m1 {
+    stop-color: #ffffff;
+  }
+  :global([data-theme='dark']) .m2 {
+    stop-color: #e8ebef;
+  }
+  :global([data-theme='dark']) .m3 {
+    stop-color: #9aa1ab;
+  }
+  .sheen {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 0.8;
+    stroke-linecap: round;
+    opacity: 0.35;
+  }
+  .mouth {
+    fill: url(#lamp-in);
+  }
+  .bulb {
+    fill: url(#lamp-bulb);
+  }
+  .spec {
+    fill: #fff;
+    opacity: 0.9;
+  }
+  .glow {
+    transition: opacity 0.3s;
+  }
+  /* Lights off: a dark inside, a grey glass bulb with a glint, no glow. */
+  :global([data-theme='dark']) .mouth {
+    fill: #121418;
+  }
+  :global([data-theme='dark']) .bulb {
+    fill: url(#lamp-glass);
+  }
+  :global([data-theme='dark']) .spec {
+    opacity: 0.55;
+  }
+  :global([data-theme='dark']) .glow {
+    opacity: 0;
+  }
+  :global([data-theme='dark']) .cord,
+  :global([data-theme='dark']) .piece path {
+    --brass: #d39a4c;
+  }
+  .knob .bead {
+    transform-box: fill-box;
+    transform-origin: 50% 0;
+    transition: scale 0.15s var(--ease);
+  }
+  /* Centred on the knob at rest; the script moves it with the knob. */
+  .grip {
+    position: absolute;
+    z-index: 1;
+    top: calc((var(--slot) - 3.75rem) / 2 + 71px - 22px);
+    left: calc(50% - 22px);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: grab;
+    touch-action: none;
+  }
+  .grip:hover + .rig .knob .bead,
+  .pulling .knob .bead {
+    scale: 1.25;
+  }
+  .pulling .grip {
+    cursor: grabbing;
+  }
+  /* The cord snapping: two flickers of the bulb in half a second. */
+  .flicker :is(.bulb, .mouth, .glow) {
+    animation: flicker 0.5s steps(1);
+  }
+  @keyframes flicker {
+    0%,
+    50% {
+      opacity: 0.15;
+    }
+    25%,
+    75% {
+      opacity: 1;
+    }
   }
   #accent-btn rect,
   .accents button {
@@ -321,13 +516,16 @@ const accents = [
     }
   }
   @media (max-width: 480px) {
-    .clock,
     .find kbd {
       display: none;
     }
     /* Four controls and the name have to share a 375px phone. */
     .right {
       gap: 0.3rem;
+    }
+    .lamp {
+      --slot: 2rem;
+      margin-left: 0.15rem;
     }
     .find,
     .sq {

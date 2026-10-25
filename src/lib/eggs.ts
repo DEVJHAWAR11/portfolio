@@ -10,6 +10,7 @@ export const EGGS = [
   { id: 'chaos', name: 'Survived the chaos monkey', hint: 'An old cheat code still works here. So does sudo chaos.' },
   { id: 'console', name: 'Opened the hood', hint: 'Developers check the DevTools console.' },
   { id: 'flame', name: 'Sat still for a minute', hint: 'On the home page, stop and do nothing for a minute.' },
+  { id: 'cord', name: 'Snapped the cord', hint: 'The lamp cord only stretches so far.' },
 ] as const;
 
 export type EggId = (typeof EGGS)[number]['id'];

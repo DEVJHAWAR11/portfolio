@@ -72,6 +72,33 @@ function click(freq: number, vol: number, ms = 28) {
   src.stop(t + ms / 1000 + 0.01);
 }
 
+// A note whose pitch wobbles, fast at first and settling: the twang of something elastic.
+function wobble(freq: number, to: number, ms: number, { type = 'triangle', vol = 0.12, rate = 16, depth = 40 }: { type?: OscillatorType; vol?: number; rate?: number; depth?: number } = {}) {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const end = t + ms / 1000;
+  const osc = a.createOscillator();
+  const lfo = a.createOscillator();
+  const swing = a.createGain();
+  const gain = a.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(to, end);
+  lfo.frequency.value = rate;
+  swing.gain.setValueAtTime(depth, t);
+  swing.gain.exponentialRampToValueAtTime(1, end);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, end);
+  lfo.connect(swing).connect(osc.frequency);
+  osc.connect(gain).connect(a.destination);
+  osc.start(t);
+  lfo.start(t);
+  osc.stop(end + 0.02);
+  lfo.stop(end + 0.02);
+}
+
 export const sfx = {
   // A key click; `step` raises the pitch for a run of clicks.
   tick: (step = 0) => {
@@ -90,6 +117,71 @@ export const sfx = {
   unlock: () => [784, 988, 1319].forEach((f, i) => tone(f, 160, { vol: 0.13, at: i * 85 })),
   // Pac-Man's bite.
   chomp: () => tone(440, 70, { type: 'square', vol: 0.05, to: 180 }),
+  // The lamp cord's switch catching: a small click as the pull gets far enough to switch the light.
+  notch: () => click(2600, 0.35, 18),
+  // An elastic cord under strain: a creak that tightens and rises as it stretches. Returns a handle to set the strain
+  // (0 to 1) as it changes, and to stop the sound.
+  stretch: () => {
+    let on: { a: AudioContext; creak: OscillatorNode; band: BiquadFilterNode; whine: OscillatorNode; lfo: OscillatorNode; gain: GainNode } | null = null;
+    return {
+      set(k: number) {
+        if (!on) {
+          if (k <= 0) return;
+          const a = audio();
+          if (!a) return;
+          // A slow sawtooth rung through a narrow band: each tooth is one tick of rubber slipping, the creak.
+          const creak = a.createOscillator();
+          const band = a.createBiquadFilter();
+          const whine = a.createOscillator();
+          const lfo = a.createOscillator();
+          const vib = a.createGain();
+          const quiet = a.createGain();
+          const gain = a.createGain();
+          creak.type = 'sawtooth';
+          band.type = 'bandpass';
+          band.Q.value = 8;
+          whine.type = 'triangle';
+          lfo.frequency.value = 7;
+          vib.gain.value = 6;
+          quiet.gain.value = 0.08;
+          gain.gain.value = 0;
+          creak.connect(band).connect(gain);
+          lfo.connect(vib).connect(whine.frequency);
+          whine.connect(quiet).connect(gain);
+          gain.connect(a.destination);
+          [creak, whine, lfo].forEach((o) => o.start());
+          on = { a, creak, band, whine, lfo, gain };
+        }
+        const t = on.a.currentTime;
+        on.creak.frequency.setTargetAtTime(14 + k * 46, t, 0.03);
+        on.band.frequency.setTargetAtTime(700 + k * 2200, t, 0.03);
+        on.whine.frequency.setTargetAtTime(160 + k * 480, t, 0.03);
+        on.gain.gain.setTargetAtTime(k > 0 ? 0.12 + k * 0.38 : 0, t, 0.03);
+      },
+      end() {
+        if (!on) return;
+        const t = on.a.currentTime;
+        on.gain.gain.setTargetAtTime(0, t, 0.02);
+        [on.creak, on.whine, on.lfo].forEach((o) => o.stop(t + 0.15));
+        on = null;
+      },
+    };
+  },
+  // A stretched cord let go: a boing, bigger the further it was pulled (0 to 1).
+  boing: (k = 1) => wobble(110 + 90 * k, 70 + 30 * k, 260 + 320 * k, { vol: 0.08 + 0.1 * k, rate: 15, depth: 25 + 55 * k }),
+  // The cord snapping: a crack, and a twang that sags away.
+  snap: () => {
+    click(3400, 1, 22);
+    click(700, 0.7, 70);
+    wobble(260, 55, 520, { type: 'sawtooth', vol: 0.07, rate: 22, depth: 30 });
+  },
+  // The cord's knob smacking into the lamp shade, louder the harder (0 to 1).
+  knock: (k = 1) => {
+    click(2200, 0.3 + 0.6 * k, 30);
+    tone(1250, 90, { type: 'triangle', vol: 0.04 + 0.08 * k, to: 1100 });
+  },
+  // A new cord dropping out of the lamp.
+  drop: () => tone(380, 110, { type: 'triangle', vol: 0.09, to: 820 }),
   toggle: () => {
     click(1800, 0.8, 35);
     tone(740, 60, { type: 'triangle', vol: 0.1 });
