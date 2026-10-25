@@ -58,7 +58,7 @@ const accents = [
           <button type="button" data-accent-pick={a.id} aria-label={a.label} title={a.label} aria-pressed="false" style={`--c:${a.light};--cd:${a.dark}`} />
         ))}
       </div>
-      <a class="btn solid sm" href={profile.resume} target="_blank" rel="noopener">Résumé ↗</a>
+      <a class="btn solid sm" href={profile.resume} target="_blank" rel="noopener">Résumé<span class="arr"> ↗</span></a>
       <div class="lamp" id="lamp">
         <button id="theme-toggle" type="button" aria-label="Switch to dark theme"></button>
         <!-- What you grab: the knob's spot, but bigger, and an HTML box so touch-action stops a drag from scrolling. -->
@@ -161,7 +161,9 @@ const accents = [
   sync();
   // The theme is a lamp with a pull cord, and pulled too far the cord snaps; see src/lib/lamp.ts. Switching on, the
   // light spreads out of the bulb over the page; switching off, it shrinks back into it.
-  lamp(document.getElementById('lamp')!, ({ x, y }) => {
+  const lampEl = document.getElementById('lamp')!;
+  let running: { skipTransition(): void; finished: Promise<void> } | null = null;
+  lamp(lampEl, ({ x, y }) => {
     const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
     sfx.toggle();
     const apply = () => {
@@ -172,24 +174,50 @@ const accents = [
     if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       root.dataset.vt = next;
       const t = vt.call(document, apply);
+      running = t;
       t.ready
         .then(() => {
           const r = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
           const light = [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`];
           const reveal = root.animate(
             { clipPath: next === 'light' ? light : light.reverse() },
-            { duration: 600, easing: 'cubic-bezier(0.55, 0, 0.2, 1)', fill: 'forwards', pseudoElement: `::view-transition-${next === 'light' ? 'new' : 'old'}(root)` },
+            { duration: 400, easing: 'cubic-bezier(0.5, 0, 0.2, 1)', fill: 'forwards', pseudoElement: `::view-transition-${next === 'light' ? 'new' : 'old'}(root)` },
           );
           // Held at its end until the transition is over, then dropped, or the next one would start clipped.
           t.finished.finally(() => reveal.cancel());
         })
         .catch(() => {});
-      t.finished.finally(() => delete root.dataset.vt);
+      t.finished.finally(() => {
+        delete root.dataset.vt;
+        if (running === t) running = null;
+      });
     } else apply();
     try {
       localStorage.setItem('theme-v2', next);
     } catch {}
   });
+
+  // While the reveal plays, the page is a picture of itself and a click lands on the root, not on what's under it.
+  // Rather than lose it, a click anywhere but the lamp (which takes its own) ends the reveal at once and goes on to
+  // whatever it was aimed at.
+  const grip = lampEl.querySelector('.grip')!;
+  const over = (el: Element, e: MouseEvent) => {
+    const r = el.getBoundingClientRect();
+    return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  };
+  document.addEventListener('click', (e) => {
+    const t = running;
+    if (!t || e.target !== root || over(btn, e) || over(grip, e)) return;
+    const { clientX: x, clientY: y } = e;
+    t.skipTransition();
+    t.finished.then(() => {
+      const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('a, button, summary, label, input, select, textarea, [tabindex]');
+      if (el?.matches('input, select, textarea')) el.focus();
+      else el?.click();
+    });
+  });
+  // Scrolling or typing ends it too, or the page would move underneath a picture that doesn't.
+  for (const ev of ['wheel', 'touchmove', 'keydown'] as const) addEventListener(ev, () => running?.skipTransition(), { passive: true });
 
   // Accent picker: a small popover under its button. The choice is saved, and the head script applies it before paint.
   const accentBtn = document.getElementById('accent-btn')!;
@@ -224,8 +252,9 @@ const accents = [
     position: fixed;
     inset: 0 0 auto;
     z-index: 50;
-    background: color-mix(in srgb, var(--bg) 92%, transparent);
-    backdrop-filter: blur(6px);
+    /* Nearly solid, so no blur behind it: a backdrop blur is redone on every frame of a scroll, and at this opacity
+       it barely showed. */
+    background: color-mix(in srgb, var(--bg) 95%, transparent);
     border-bottom: 1px solid var(--edge);
   }
   .inner {
@@ -322,6 +351,7 @@ const accents = [
   .lamp {
     --slot: 2.2rem;
     position: relative;
+    flex: none;
     margin-left: 0.6rem;
     width: var(--slot);
     height: var(--slot);
@@ -536,6 +566,18 @@ const accents = [
     }
     .right .btn.sm {
       padding: 0 0.6rem;
+    }
+  }
+  /* The narrowest phones (320px) need a little more room for the lamp. */
+  @media (max-width: 350px) {
+    .inner {
+      gap: 0.4rem;
+    }
+    .arr {
+      display: none;
+    }
+    .right .btn.sm {
+      padding: 0 0.5rem;
     }
   }
 </style>
