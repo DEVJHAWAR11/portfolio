@@ -4,23 +4,33 @@ import ResearchGrid from '@/components/ResearchGrid/ResearchGrid.astro';
 import profile from '@/data/profile.json';
 
 const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'].includes(l.label));
+// The headline word by word, so each can rise out of its line on the way in (global.css, "Opening").
+const words = 'I build AI agents and the backend behind them.'.split(' ');
 ---
 
 <section class="hero" id="hello">
   <div class="top">
     <div class="copy">
-      <p class="hi">Hi, I'm Dev Jhawar.</p>
-      <h1>I build AI agents and the backend behind them.</h1>
-      <p class="lede">
+      <p class="hi" data-step>Hi, I'm Dev Jhawar.</p>
+      <h1>
+        {
+          words.map((w, i) => (
+            <>
+              <span class="w"><span data-step style={`--d:${0.1 + i * 0.045}s`}>{w}</span></span>{' '}
+            </>
+          ))
+        }
+      </h1>
+      <p class="lede" data-step style="--d:0.5s">
         Retrieval that cites its sources, agents with real state machines, and queues that survive a bad day. Lately
         I've also been sending fixes upstream to Kubeflow, Prefect and Docling.
       </p>
-      <div class="cta">
+      <div class="cta" data-step style="--d:0.6s">
         <a class="btn solid" href="#contact">Get in touch</a>
         <a class="btn" href="#projects">See projects</a>
         <a class="btn quick" href="/quick">In a hurry? 60-second view</a>
       </div>
-      <p class="mono socials">
+      <p class="mono socials" data-step style="--d:0.7s">
         {
           socials.map((l) => (
             <a class="link" href={l.href} target="_blank" rel="noopener">
@@ -28,6 +38,10 @@ const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'
             </a>
           ))
         }
+        <span class="clock" title="My local time in Bhubaneswar">
+          <span class="dot ok" id="clock-dot"></span>
+          <span><span id="clock-time">--:--</span> IST in Bhubaneswar</span>
+        </span>
       </p>
     </div>
 
@@ -36,8 +50,29 @@ const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'
     </div>
   </div>
 
-  <ResearchGrid />
+  <div data-step style="--d:0.85s">
+    <ResearchGrid />
+  </div>
 </section>
+
+<script>
+  const time = document.getElementById('clock-time')!;
+  const dot = document.getElementById('clock-dot')!;
+  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+  let was: boolean | undefined;
+  const tick = () => {
+    const t = fmt.format(new Date());
+    const h = Number(t.slice(0, 2));
+    const awake = h >= 8 || h < 2;
+    time.textContent = t;
+    if (awake === was) return;
+    was = awake;
+    dot.className = `dot ${awake ? 'ok' : 'pend'}`;
+    dot.parentElement!.title = awake ? 'My local time. Probably awake.' : 'My local time. Asleep, I reply in the morning.';
+  };
+  tick();
+  setInterval(tick, 5000);
+</script>
 
 <style>
   .hero {
@@ -60,6 +95,11 @@ const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'
     margin: 0;
     font-size: clamp(3rem, 6.6vw, 5.6rem);
     line-height: 0.88;
+  }
+  /* Only the bottom edge clips, so a word can rise from under its line without losing the tops of its letters. */
+  .w {
+    display: inline-block;
+    clip-path: inset(-0.4em -0.2em 0 -0.2em);
   }
   .lede {
     max-width: 36rem;
@@ -92,10 +132,49 @@ const socials = profile.links.filter((l) => ['GitHub', 'LinkedIn', 'X', 'dev.to'
     color: var(--bg);
     text-decoration-color: transparent;
   }
+  /* My local time; the dot goes amber when I'm probably asleep. */
+  .clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding-left: 1.2rem;
+    border-left: 1px solid var(--edge);
+    color: var(--muted);
+  }
+  /* On a phone it gets a line of its own, so no divider. */
+  @media (max-width: 480px) {
+    .clock {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
   .art {
     width: 100%;
     max-width: 30rem;
     justify-self: end;
+  }
+  /* Parallax as the page scrolls away: the words move a little faster than the page, the portrait a little slower,
+     so they come apart in depth. Scroll-driven CSS, so it runs off the main thread; browsers without it stay still. */
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: scroll()) {
+      .copy,
+      .art {
+        animation: hero-depth linear both;
+        animation-timeline: scroll(root);
+        animation-range: 0 100vh;
+      }
+      .copy {
+        --to: -7vh;
+      }
+      .art {
+        --to: 6vh;
+      }
+    }
+  }
+  @keyframes hero-depth {
+    to {
+      translate: 0 var(--to);
+    }
   }
   @media (max-width: 860px) {
     .top {

@@ -220,6 +220,12 @@ export async function livePortrait(el: HTMLElement) {
   }
 
   if (waiting) {
+    // The intro (Intro.astro) covers the page first; gather as it lifts.
+    if (document.documentElement.dataset.intro === '')
+      await new Promise((go) => {
+        document.documentElement.addEventListener('intro-done', go, { once: true });
+        setTimeout(go, 5000);
+      });
     // Wait until the portrait is on screen, in case the page loaded scrolled down.
     const io = new IntersectionObserver((entries) => {
       if (!entries.some((e) => e.isIntersecting)) return;

@@ -91,6 +91,34 @@
     top: 34%;
     border-left: 2px solid var(--accent);
   }
+  /* The notes float a layer above the photo: as the page scrolls they slide by at their own pace (see Hero.astro). */
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: scroll()) {
+      .note,
+      .plus {
+        animation: note-depth linear both;
+        animation-timeline: scroll(root);
+        animation-range: 0 100vh;
+      }
+      .n1 {
+        --to: -9vh;
+      }
+      .n2 {
+        --to: -4vh;
+      }
+      .plus.a {
+        --to: -12vh;
+      }
+      .plus.b {
+        --to: 3vh;
+      }
+    }
+  }
+  @keyframes note-depth {
+    to {
+      translate: 0 var(--to, 0);
+    }
+  }
   @media (max-width: 640px) {
     /* The canvas reaches past the box; on a phone the box is nearly full width, so keep it from widening the page. */
     .portrait {

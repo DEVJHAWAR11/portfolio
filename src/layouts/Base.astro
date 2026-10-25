@@ -13,12 +13,14 @@ interface Props {
   title?: string;
   description?: string;
   image?: string; // social preview, from /og/<slug>.png
+  intro?: boolean; // open with the printed name and the staged entrance (home page only)
 }
 
 const {
   title = `${profile.name} · agents and AI infrastructure`,
   description = `${profile.name}: ${profile.role} Final-year CS at KIIT.`,
   image = '/og/home.png',
+  intro = false,
 } = Astro.props;
 const ogUrl = new URL(image, Astro.site);
 // Pages build as files (index.html, status.html), but are served without the extension.
@@ -57,6 +59,31 @@ const canonical = new URL(Astro.url.pathname.replace(/(index)?\.html$/, ''), Ast
         if (accent) document.documentElement.dataset.accent = accent;
       } catch {}
     </script>
+    {
+      intro && (
+        <script is:inline>
+          // Whether the page comes in a piece at a time (data-enter), and opens on my name first (data-intro, once a
+          // session, not on a lite device; Intro.astro). Neither with reduced motion, on a link to a section, or coming
+          // back to the page with the back button. If the intro's script never runs, the cover still lifts.
+          (function () {
+            var d = document.documentElement;
+            var n = navigator;
+            try {
+              var nav = performance.getEntriesByType('navigation')[0];
+              if (location.hash || (nav && nav.type === 'back_forward') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+              d.dataset.enter = '';
+              var lite = (n.connection && n.connection.saveData) || (n.deviceMemory || 8) < 4 || (n.hardwareConcurrency || 8) < 4;
+              if (!lite && !sessionStorage.getItem('intro')) {
+                d.dataset.intro = '';
+                setTimeout(function () {
+                  if (d.dataset.intro === '') d.dataset.intro = 'done';
+                }, 5000);
+              }
+            } catch (e) {}
+          })();
+        </script>
+      )
+    }
   </head>
   <body>
     <a class="skip sr-only" href="#main">Skip to content</a>

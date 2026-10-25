@@ -10,13 +10,15 @@ import Stack from '@/components/Stack/Stack.astro';
 import Now from '@/components/Now/Now.astro';
 import Contact from '@/components/Contact/Contact.astro';
 import Gloss from '@/components/Gloss/Gloss.astro';
+import Intro from '@/components/Intro/Intro.astro';
 import profile from '@/data/profile.json';
 import { sections } from '@/lib/sections';
 
 const s = Object.fromEntries(sections.map((x) => [x.id, x]));
 ---
 
-<Base>
+<Base intro>
+  <Intro />
   <Hero />
 
   <Section {...s.about}>

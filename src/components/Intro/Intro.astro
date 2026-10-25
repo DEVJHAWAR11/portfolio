@@ -1,0 +1,294 @@
+---
+// The first home page visit of a session opens on my name, said a few different ways: in Hindi, Odia and Bengali,
+// in Japanese, in a serif, in mono, and last in the site's own face. A counter climbs with the page's real loading
+// (fonts, the portrait's dots, the load event) while the words in the corner scramble through what I work on. Then the
+// name lifts away, the cover wipes up, and the page comes in under it. The non-Latin names use the device's own
+// fonts, so nothing extra downloads.
+// The head script in Base.astro decides whether it runs: not with reduced motion, on a lite device, on a link to a
+// section, or twice in a session; it also lifts the cover by itself if this script never runs. "out" means the cover
+// is lifting (the page's entrance starts), "done" that it's gone. A click, key or scroll skips to the end.
+const names = [
+  { text: 'देव झावर', lang: 'hi', in: 'Hindi', face: 'deva' },
+  { text: 'ଦେବ ଝାୱର', lang: 'or', in: 'Odia', face: 'odia' },
+  { text: 'দেব ঝাওয়ার', lang: 'bn', in: 'Bengali', face: 'beng' },
+  { text: 'デヴ ジャワル', lang: 'ja', in: 'Japanese', face: 'jp' },
+  { text: 'Дев Джавар', lang: 'ru', in: 'Russian', face: 'serif' },
+  { text: 'Ντεβ Τζαβάρ', lang: 'el', in: 'Greek', face: 'mono' },
+  { text: 'dev jhawar', lang: 'en', in: 'lowercase', face: 'sans' },
+  { text: 'Dev Jhawar', lang: 'en', in: 'English', face: 'display' },
+];
+const work = ['Agents', 'Retrieval', 'Backend', 'Open source'];
+---
+
+<div class="intro" id="intro" aria-hidden="true">
+  <i class="bar" id="intro-bar"></i>
+  <div class="mid">
+    <p class="name" id="intro-name" lang={names[0].lang} data-face={names[0].face} data-names={JSON.stringify(names)}>
+      {names[0].text}
+    </p>
+    <p class="mono said" id="intro-said">in {names[0].in}</p>
+  </div>
+  <p class="count"><span id="intro-count">000</span><small>%</small></p>
+  <p class="mono work" id="intro-work" data-words={JSON.stringify(work)}>{work[0]}</p>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const intro = document.getElementById('intro')!;
+  if (root.dataset.intro !== '') intro.remove();
+  else run();
+
+  function run() {
+    try {
+      sessionStorage.setItem('intro', '1');
+    } catch {}
+    const $ = (id: string) => document.getElementById(id)!;
+    const bar = $('intro-bar');
+    const count = $('intro-count');
+    const name = $('intro-name');
+    const said = $('intro-said');
+    const workEl = $('intro-work');
+    const born = performance.now();
+    const STEP = 290; // each way of writing the name stays this long
+    const names: { text: string; lang: string; in: string; face: string }[] = JSON.parse(name.dataset.names!);
+    const MIN = STEP * names.length + 300; // about 2.5s: every name, and a beat on the last one
+    const MAX = 4000; // the longest a slow network holds it before it lifts anyway
+
+    // The name, a new way every step, ending on the site's own.
+    let ni = 0;
+    const next = () => {
+      const n = names[++ni];
+      name.lang = n.lang;
+      name.dataset.face = n.face;
+      name.textContent = n.text;
+      said.textContent = `in ${n.in}`;
+      if (ni < names.length - 1) cycle = window.setTimeout(next, STEP);
+    };
+    let cycle = window.setTimeout(next, STEP);
+
+    // Real progress: the page parsed, the fonts in, the portrait's dots in, then the load event.
+    let target = 30;
+    const reach = (n: number) => (target = Math.max(target, n));
+    document.fonts.ready.then(() => reach(target + 30));
+    const img = new Image();
+    img.onload = img.onerror = () => reach(target + 25);
+    img.src = root.dataset.theme === 'dark' ? '/halftone-dark.svg' : '/halftone.svg';
+    if (document.readyState === 'complete') reach(100);
+    else addEventListener('load', () => reach(100), { once: true });
+
+    // The words in the corner, each one scrambling in from random letters.
+    const words: string[] = JSON.parse(workEl.dataset.words!);
+    const CHARS = 'abcdefghijklmnopqrstuvwxyz/<>_=';
+    let wi = 0;
+    const scramble = setInterval(() => {
+      const word = words[++wi % words.length];
+      let f = 0;
+      const step = () => {
+        f++;
+        workEl.textContent = [...word]
+          .map((c, i) => (c === ' ' || i < f - 3 ? c : CHARS[(Math.random() * CHARS.length) | 0]))
+          .join('');
+        if (f < word.length + 3) requestAnimationFrame(step);
+      };
+      step();
+    }, 560);
+
+    let shown = 0;
+    let leaving = false;
+    const tick = (now: number) => {
+      if (leaving) return;
+      const t = now - born;
+      if (t > MAX) target = 100;
+      // Ease toward the real progress, but no faster than the clock, so 100 arrives with the last name.
+      const cap = Math.min(target, (t / MIN) * 100);
+      shown = Math.min(cap, shown + Math.max(0.4, (cap - shown) * 0.12));
+      count.textContent = String(Math.floor(shown)).padStart(3, '0');
+      bar.style.transform = `scaleX(${shown / 100})`;
+      if (shown >= 100) leave();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+
+    // The name lifts out of its line, the corners fall away, and the cover wipes up off the page.
+    function leave() {
+      if (leaving) return;
+      leaving = true;
+      off();
+      clearTimeout(cycle);
+      clearInterval(scramble);
+      if (ni < names.length - 1) {
+        ni = names.length - 2;
+        next();
+      }
+      count.textContent = '100';
+      bar.style.transform = 'scaleX(1)';
+      const ease = 'cubic-bezier(0.7, 0, 0.2, 1)';
+      name.animate([{ transform: 'none' }, { transform: 'translateY(-110%)' }], { duration: 500, easing: ease, fill: 'forwards' });
+      for (const el of [said, count.parentElement!, workEl])
+        el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(10px)' }], { duration: 300, fill: 'forwards' });
+      intro
+        .animate([{ clipPath: 'inset(0 0 0 0)' }, { clipPath: 'inset(0 0 100% 0)' }], { duration: 700, delay: 250, easing: ease, fill: 'forwards' })
+        .finished.then(() => {
+          root.dataset.intro = 'done';
+          intro.remove();
+        });
+      // The page's entrance and the portrait's gathering start as the cover begins to move.
+      setTimeout(() => {
+        root.dataset.intro = 'out';
+        root.dispatchEvent(new CustomEvent('intro-done'));
+      }, 350);
+    }
+
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchmove'] as const;
+    const skip = () => leave();
+    const off = () => events.forEach((e) => removeEventListener(e, skip));
+    events.forEach((e) => addEventListener(e, skip, { passive: true }));
+  }
+</script>
+
+<style>
+  .intro {
+    display: none;
+  }
+  :global(:root[data-intro]) .intro {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    contain: strict;
+    /* The same dots as the body, from the same corner. */
+    background: var(--bg) radial-gradient(var(--grid) 1px, transparent 1.3px) 0 0 / 20px 20px;
+  }
+  /* Without its script, the cover still lifts (the head script sets "done" after a few seconds). */
+  :global(:root[data-intro='done']) .intro {
+    animation: intro-out 0.4s ease forwards;
+  }
+  .bar {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  /* The name sits in a box of fixed height, so changing scripts never moves anything around it. */
+  .mid {
+    --nh: clamp(4.5rem, 16vw, 14.5rem);
+    display: grid;
+    width: 100%;
+    justify-items: center;
+    gap: 1.2rem;
+    padding-inline: var(--gutter);
+    /* The name lifts out of this line on the way out. */
+    clip-path: inset(0 -50% -50% -50%);
+  }
+  .name {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: var(--nh);
+    margin: 0;
+    font-size: clamp(3rem, 11vw, 10rem);
+    line-height: 1;
+    text-align: center;
+    text-wrap: balance;
+    word-break: keep-all; /* Japanese breaks at the space, not inside the name */
+  }
+  .said {
+    margin: 0;
+    color: var(--muted);
+  }
+  /* Each way of writing it gets a face that suits it: the device's own for the other scripts. */
+  [data-face='deva'] {
+    font-family: 'Nirmala UI', 'Kohinoor Devanagari', 'Noto Sans Devanagari', sans-serif;
+    font-weight: 700;
+  }
+  [data-face='odia'] {
+    font-family: 'Nirmala UI', 'Noto Sans Oriya', 'Noto Sans Odia', sans-serif;
+    font-weight: 700;
+  }
+  [data-face='beng'] {
+    font-family: 'Nirmala UI', 'Kohinoor Bangla', 'Noto Sans Bengali', sans-serif;
+    font-weight: 700;
+  }
+  [data-face='jp'] {
+    font-family: 'Yu Gothic', 'Hiragino Sans', 'Noto Sans JP', 'Noto Sans CJK JP', sans-serif;
+    font-weight: 800;
+    font-size: clamp(2.6rem, 9vw, 8.5rem);
+  }
+  [data-face='serif'] {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 400;
+  }
+  [data-face='mono'] {
+    font-family: var(--mono);
+    font-size: clamp(2.4rem, 8.5vw, 8rem);
+    font-weight: 500;
+    letter-spacing: -0.04em;
+  }
+  [data-face='sans'] {
+    font-family: var(--sans);
+    font-weight: 400;
+    letter-spacing: -0.04em;
+  }
+  [data-face='display'] {
+    font-family: var(--display);
+    font-size: clamp(3.4rem, 14vw, 13rem);
+    font-stretch: 72%;
+    font-weight: 800;
+    line-height: 0.86;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+  }
+  .count {
+    position: absolute;
+    left: var(--gutter);
+    bottom: calc(var(--gutter) - 0.1em);
+    margin: 0;
+    font: 800 clamp(3rem, 9vw, 7.5rem) / 0.8 var(--display);
+    font-stretch: 72%;
+    font-variant-numeric: tabular-nums;
+  }
+  .count small {
+    margin-left: 0.1em;
+    font-size: 0.35em;
+    color: var(--accent);
+  }
+  .work {
+    position: absolute;
+    right: var(--gutter);
+    bottom: var(--gutter);
+    width: 14ch; /* fixed, so a longer word doesn't push it sideways */
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .work::before {
+    content: '';
+    display: inline-block;
+    width: 0.5em;
+    height: 0.5em;
+    margin-right: 0.6em;
+    background: var(--accent);
+  }
+  @keyframes intro-out {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+  @media (max-width: 640px) {
+    .mid {
+      --nh: 42vw;
+    }
+    .name {
+      font-size: 17vw;
+    }
+    [data-face='display'] {
+      font-size: 22vw;
+    }
+  }
+</style>
