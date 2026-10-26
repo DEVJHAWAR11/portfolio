@@ -1,10 +1,37 @@
 ---
 import profile from '@/data/profile.json';
 import { EGGS } from '@/lib/eggs';
-const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
 ---
 
 <footer class="mono" data-noprint>
+  <div
+    class="game"
+    data-game
+    tabindex="-1"
+    role="application"
+    aria-label="Slingshot. Drag the ball back and let go, or aim with the arrow keys and fire with space. Escape ends the game."
+  >
+    <!-- At rest: a drawn slingshot and an invitation. The game itself loads and starts only on Play. -->
+    <svg class="rest" viewBox="0 0 40 56" width="40" height="56" aria-hidden="true">
+      <path class="band" d="M33 7 20 10 7 7" />
+      <path class="frame" d="M20 56V28Q7 24 7 7M20 28Q33 24 33 7" />
+      <circle class="ball" cx="20" cy="10" r="6" />
+    </svg>
+    <div class="invite">
+      <button type="button" class="btn play" data-play>
+        <span class="hop" aria-hidden="true"></span>
+        Play slingshot
+      </button>
+      <span>Squash the bugs on this page. Hit the lamp for a bonus.</span>
+    </div>
+    <p class="hud">
+      <span>score <b data-score>0</b></span>
+      <span class="shots" data-shots aria-label="Balls left">●●●●●</span>
+      <span>best <b data-best>0</b></span>
+      <button type="button" class="quit" data-quit>Done</button>
+    </p>
+    <p class="say" data-say hidden></p>
+  </div>
   <div class="inner">
     <span>© {new Date().getFullYear()} {profile.name}</span>
     <div class="eggs">
@@ -25,7 +52,14 @@ const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
         }
       </ul>
     </div>
-    <span>Built with Astro, last build {built} UTC. <a href="/status">Service status</a>. <a href="/cli">Terminal</a></span>
+    <span class="links">
+      <a href="/status" aria-label="Service status" title="Service status">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M1 8.5h3l2-5 4 9 2-4h3" /></svg>
+      </a>
+      <a href="/cli" aria-label="Terminal" title="Terminal">
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M4.5 6.5l2 2-2 2M8.5 10.5h3" /></svg>
+      </a>
+    </span>
   </div>
 </footer>
 
@@ -54,22 +88,159 @@ const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
   document.addEventListener('click', (e) => !list.hidden && !(e.target as Element).closest('.eggs') && show(false));
   list.addEventListener('keydown', (e) => e.key === 'Escape' && (show(false), btn.focus()));
   btn.addEventListener('keydown', (e) => e.key === 'Escape' && show(false));
+
+  // The slingshot's code is fetched once the footer is close, so Play starts at once, and the rest of the page never
+  // pays for it. Nothing of it runs until Play.
+  const game = document.querySelector<HTMLElement>('[data-game]')!;
+  let code: Promise<typeof import('@/lib/sling')> | null = null;
+  const load = () => (code ??= import('@/lib/sling'));
+  new IntersectionObserver(
+    (seen, io) => {
+      if (!seen[0].isIntersecting) return;
+      io.disconnect();
+      load();
+    },
+    { rootMargin: '300px 0px' },
+  ).observe(game);
+  game.querySelector('[data-play]')!.addEventListener('click', () => load().then((m) => m.sling(game)));
 </script>
 
 <style>
   footer {
+    position: relative;
     width: min(var(--w), 100% - 2 * var(--gutter));
     margin: 5rem auto 0;
-    padding: 1.5rem 0 3rem;
+    padding: 0 0 2rem;
     border-top: 1px solid var(--edge);
+    font-size: 0.7rem;
     color: var(--faint);
   }
-  a {
-    text-decoration: underline;
-    text-underline-offset: 3px;
+  .game {
+    position: relative;
+    height: 180px;
+    outline: none;
   }
-  a:hover {
+  /* Playing: the area takes drags instead of scrolling, and the score bar replaces the invitation. */
+  .game.on {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .game.on:active {
+    cursor: grabbing;
+  }
+  .game.on:focus-visible {
+    outline: 1px dashed var(--accent);
+    outline-offset: -1px;
+  }
+  .game.on .rest,
+  .game.on .invite,
+  .game:not(.on) .hud {
+    display: none;
+  }
+  .rest {
+    position: absolute;
+    left: 28px;
+    bottom: 10px;
+    overflow: visible;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rest .frame {
+    stroke: var(--muted);
+    stroke-width: 4.5;
+  }
+  .rest .band {
+    stroke: var(--accent);
+    stroke-width: 3.2;
+  }
+  .rest .ball {
+    fill: var(--fg);
+  }
+  .invite {
+    position: absolute;
+    inset: 0 0 0 7rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+  .play {
+    gap: 0.6rem;
+    border-color: var(--accent);
+  }
+  .play:hover,
+  .play:focus-visible {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  /* The ball on the button hops when you point at it. */
+  .hop {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .play:hover .hop,
+  .play:focus-visible .hop {
+    background: var(--bg);
+    animation: hop 0.5s cubic-bezier(0.3, 0, 0.3, 1) infinite alternate;
+  }
+  @keyframes hop {
+    to {
+      translate: 0 -5px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .play .hop {
+      animation: none !important;
+    }
+  }
+  .hud {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    margin: 0;
+    padding-top: 0.9rem;
+  }
+  .quit {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--edge);
+    color: var(--muted);
+  }
+  .quit:hover {
+    border-color: var(--fg);
+    color: var(--fg);
+  }
+  .hud b {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .shots {
+    letter-spacing: 0.2em;
     color: var(--accent);
+  }
+  .say {
+    position: absolute;
+    inset: 42% 0 auto;
+    margin: 0;
+    padding: 0 1rem;
+    text-align: center;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .say[hidden] {
+    display: none;
+  }
+  footer :global(canvas.table) {
+    position: absolute;
+    bottom: 0;
+    z-index: 51;
+    pointer-events: none;
   }
   .inner {
     display: flex;
@@ -77,6 +248,30 @@ const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
     justify-content: space-between;
     align-items: center;
     gap: 0.5rem 1.5rem;
+    padding-top: 0.9rem;
+  }
+  .links {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .links a {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 1px solid var(--edge);
+    color: var(--muted);
+  }
+  .links a:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .links svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .eggs {
     position: relative;
@@ -99,7 +294,7 @@ const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
     position: absolute;
     bottom: calc(100% + 0.6rem);
     left: 0;
-    z-index: 20;
+    z-index: 52;
     width: min(21rem, 100vw - 2 * var(--gutter));
     margin: 0;
     padding: 0.4rem 0;
