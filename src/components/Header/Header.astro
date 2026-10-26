@@ -163,7 +163,7 @@ const accents = [
   // light spreads out of the bulb over the page; switching off, it shrinks back into it.
   const lampEl = document.getElementById('lamp')!;
   let running: { skipTransition(): void; finished: Promise<void> } | null = null;
-  lamp(lampEl, ({ x, y }) => {
+  lamp(lampEl, ({ x, y }, now) => {
     const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
     sfx.toggle();
     const apply = () => {
@@ -171,7 +171,7 @@ const accents = [
       sync();
     };
     const vt = (document as any).startViewTransition;
-    if (vt && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (vt && !now && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       root.dataset.vt = next;
       const t = vt.call(document, apply);
       running = t;
@@ -351,6 +351,7 @@ const accents = [
   .lamp {
     --slot: 2.2rem;
     position: relative;
+    view-transition-name: lamp;
     flex: none;
     margin-left: 0.6rem;
     width: var(--slot);
@@ -443,7 +444,7 @@ const accents = [
     opacity: 0.9;
   }
   .glow {
-    transition: opacity 0.3s;
+    transition: opacity 0.15s;
   }
   /* Lights off: a dark inside, a grey glass bulb with a glint, no glow. */
   :global([data-theme='dark']) .mouth {

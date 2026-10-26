@@ -489,3 +489,13 @@ section[data-pod='up'] .pod {
 :root[data-vt='dark']::view-transition-old(root) {
   z-index: 1;
 }
+/* The lamp and the slingshot's table stay live on top of the reveal, so a lamp knocked or pulled swings while the
+   light changes, not after; and the lamp shows its new state at once, as a light does when its switch clicks. */
+::view-transition-old(lamp),
+::view-transition-old(sling) {
+  display: none;
+}
+::view-transition-new(lamp),
+::view-transition-new(sling) {
+  animation: none;
+}
