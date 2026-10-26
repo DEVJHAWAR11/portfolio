@@ -13,14 +13,6 @@ const filters = [['all', 'All', prs.length], ...Object.entries(counts).map(([k, 
   ([k, , n]) => k !== 'closed' || (n as number) > 0,
 ) as [string, string, number][];
 const repos = new Set(prs.map((p) => p.repo)).size;
-// Colour sets for the map. Each sets four shades, from a quiet day to the busiest.
-const palettes = [
-  ['ink', 'Ink'],
-  ['grass', 'Grass'],
-  ['ember', 'Ember'],
-  ['ocean', 'Ocean'],
-  ['candy', 'Candy'],
-];
 ---
 
 <div class="oss" data-oss data-at={at} data-cals={packCals(cals)}>
@@ -36,20 +28,7 @@ const palettes = [
             ))}
           </div>
           <div class="acts">
-            <div class="heat" role="group" aria-label="Map colours">
-              {palettes.map(([id, name], i) => (
-                <button type="button" data-heat={id} aria-pressed={i === 0 ? 'true' : 'false'} title={name} aria-label={`${name} colours`}>
-                  <i />
-                  <i />
-                  <i />
-                  <i />
-                </button>
-              ))}
-            </div>
             <div class="play">
-              <button type="button" class="btn sm" data-replay>
-                Replay
-              </button>
               <button type="button" class="btn sm pacbtn" data-pac aria-label="Play Pac-Man">
               <svg viewBox="-6 -6 12 12" width="13" height="13" aria-hidden="true">
                 <path d="M0 0 L4.6 2.7 A5.3 5.3 0 1 1 4.6 -2.7 Z" fill="currentColor" />
@@ -59,7 +38,7 @@ const palettes = [
             </div>
           </div>
         </div>
-        <div class="map" data-map data-heat="ink" set:html={heatmap(first.days)} />
+        <div class="map" data-map set:html={heatmap(first.days)} />
         <p class="mono cap" data-cap aria-live="polite">
           Each dot is a day. Bigger dots mean more commits, PRs and reviews.
         </p>
@@ -101,7 +80,6 @@ const palettes = [
 
   const root = document.querySelector<HTMLElement>('[data-oss]');
   if (root) {
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const $ = <T extends Element = HTMLElement>(s: string) => root.querySelector<T>(s);
     const map = $('[data-map]');
     const cap = $('[data-cap]');
@@ -109,7 +87,7 @@ const palettes = [
     const capText = cap?.textContent ?? '';
     const say = (t: string) => cap && (cap.textContent = t);
     let filter = 'all';
-    // Replay and Pac-Man both draw on the map, so only one runs at a time and the year stays put meanwhile.
+    // While Pac-Man is eating the map, the year stays put.
     let busy = false;
 
     let cals: Cal[] = unpackCals(root.dataset.cals!);
@@ -139,21 +117,6 @@ const palettes = [
     }
     root.querySelectorAll<HTMLButtonElement>('[data-y]').forEach((b) => b.addEventListener('click', () => !busy && showYear(b.dataset.y!)));
 
-    // Colour sets, remembered for the next visit.
-    const heatBtns = root.querySelectorAll<HTMLButtonElement>('.heat [data-heat]');
-    function setHeat(id: string) {
-      if (!map || ![...heatBtns].some((b) => b.dataset.heat === id)) return;
-      map.dataset.heat = id;
-      heatBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.heat === id)));
-      try {
-        localStorage.setItem('heat', id);
-      } catch {}
-    }
-    heatBtns.forEach((b) => b.addEventListener('click', () => setHeat(b.dataset.heat!)));
-    try {
-      setHeat(localStorage.getItem('heat') ?? 'ink');
-    } catch {}
-
     // Hovering or tapping a dot names that day in the caption.
     map?.addEventListener('pointerover', (e) => {
       const i = (e.target as Element).getAttribute('data-i');
@@ -161,36 +124,11 @@ const palettes = [
     });
     map?.addEventListener('pointerleave', () => !busy && say(capText));
 
-    const replay = $<HTMLButtonElement>('[data-replay]');
     const pac = $<HTMLButtonElement>('[data-pac]');
     const lock = (on: boolean) => {
       busy = on;
-      if (replay) replay.disabled = on;
       if (pac) pac.disabled = on;
     };
-
-    // Replay fills the year in week by week while the total counts up.
-    replay?.addEventListener('click', async () => {
-      const dots = [...map!.querySelectorAll<SVGCircleElement>('circle')];
-      const weeks = Number(dots.at(-1)?.dataset.w ?? 0) + 1;
-      lock(true);
-      map!.classList.add('replay');
-      let sum = 0;
-      for (let w = 0; w < weeks; w++) {
-        for (const c of dots) {
-          if (Number(c.dataset.w) !== w) continue;
-          c.classList.add('on');
-          sum += days[Number(c.dataset.i)].n;
-        }
-        say(`Week ${w + 1} of ${weeks}: ${sum.toLocaleString('en-IN')} contributions so far`);
-        if (!reduce) await new Promise((r) => setTimeout(r, 45));
-      }
-      map!.classList.remove('replay');
-      dots.forEach((c) => c.classList.remove('on'));
-      say(capText);
-      lock(false);
-      unlock('pacman');
-    });
 
     // Pac-Man eats the year column by column; the score is the contributions on the days he eats.
     pac?.addEventListener('click', async () => {
@@ -209,6 +147,7 @@ const palettes = [
       });
       say(`Game over. Pac-Man ate ${score.toLocaleString('en-IN')} contributions from ${yearName()} in ${(ms / 1000).toFixed(1)} s.`);
       lock(false);
+      unlock('pacman');
     });
 
     // Filters hide PRs, and a repo with none left hides too.
@@ -306,7 +245,7 @@ const palettes = [
     align-items: center;
     gap: 0.5rem;
   }
-  /* Colours, Replay and Pac-Man share one line; on a phone everything tightens up to fit it. */
+  /* The year picker and Pac-Man share one line; on a phone everything tightens up to fit it. */
   .play {
     display: flex;
     gap: 0.5rem;
@@ -315,10 +254,6 @@ const palettes = [
     .acts {
       flex-wrap: nowrap;
       gap: 0.4rem;
-    }
-    .acts .heat {
-      gap: 0;
-      margin-right: 0;
     }
     .play {
       gap: 0.4rem;
@@ -375,93 +310,12 @@ const palettes = [
     opacity: 0.6;
   }
 
-  /* Colour sets. Light and dark get their own shades so the quiet days never vanish into the panel. */
-  [data-heat='ink'] {
+  /* One colour, the accent, in four strengths from a quiet day to the busiest. */
+  .map {
     --h1: color-mix(in srgb, var(--accent) 40%, var(--panel));
     --h2: color-mix(in srgb, var(--accent) 62%, var(--panel));
     --h3: color-mix(in srgb, var(--accent) 82%, var(--panel));
     --h4: var(--accent);
-  }
-  [data-heat='grass'] {
-    --h1: #9be9a8;
-    --h2: #40c463;
-    --h3: #30a14e;
-    --h4: #216e39;
-  }
-  [data-heat='ember'] {
-    --h1: #fdcf8f;
-    --h2: #fb9a4b;
-    --h3: #ec5f2a;
-    --h4: #c22a1a;
-  }
-  [data-heat='ocean'] {
-    --h1: #a9dcf5;
-    --h2: #55b2e3;
-    --h3: #1d82c4;
-    --h4: #0b4c86;
-  }
-  [data-heat='candy'] {
-    --h1: #f6c2de;
-    --h2: #ee86bd;
-    --h3: #d64a98;
-    --h4: #95186a;
-  }
-  :global([data-theme='dark']) [data-heat='grass'] {
-    --h1: #0e4429;
-    --h2: #006d32;
-    --h3: #26a641;
-    --h4: #39d353;
-  }
-  :global([data-theme='dark']) [data-heat='ember'] {
-    --h1: #5a2610;
-    --h2: #a3431b;
-    --h3: #e7702b;
-    --h4: #ffb54d;
-  }
-  :global([data-theme='dark']) [data-heat='ocean'] {
-    --h1: #0c3552;
-    --h2: #0f6299;
-    --h3: #2b9de2;
-    --h4: #8ed6ff;
-  }
-  :global([data-theme='dark']) [data-heat='candy'] {
-    --h1: #4c1636;
-    --h2: #8c2566;
-    --h3: #d2489b;
-    --h4: #ff9cd6;
-  }
-  .heat {
-    display: flex;
-    gap: 0.25rem;
-    margin-right: 0.3rem;
-  }
-  .heat button {
-    display: grid;
-    grid-template-columns: repeat(2, 5px);
-    gap: 2px;
-    padding: 5px;
-    border: 1px solid transparent;
-  }
-  .heat button:hover {
-    border-color: var(--edge);
-  }
-  .heat button[aria-pressed='true'] {
-    border-color: var(--fg);
-  }
-  .heat i {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--h1);
-  }
-  .heat i:nth-child(2) {
-    background: var(--h2);
-  }
-  .heat i:nth-child(3) {
-    background: var(--h3);
-  }
-  .heat i:nth-child(4) {
-    background: var(--h4);
   }
   .pacbtn {
     gap: 0.45rem;
@@ -507,9 +361,6 @@ const palettes = [
   .map :global(circle:hover) {
     fill: var(--fg);
     opacity: 1;
-  }
-  .map:global(.replay) :global(circle:not(.on)) {
-    opacity: 0;
   }
   .map :global(circle.eaten) {
     opacity: 0;

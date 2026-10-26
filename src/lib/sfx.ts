@@ -65,20 +65,25 @@ function tone(freq: number, ms: number, { type = 'sine', vol = 0.15, to, at = 0 
   osc.stop(t + ms / 1000 + 0.02);
 }
 
-// A burst of filtered noise: the snap of a key or a switch.
-function click(freq: number, vol: number, ms = 28) {
-  const a = audio();
-  if (!a) return;
+// A short loop of white noise, made once.
+function noiseOf(a: AudioContext) {
   if (!noise) {
     noise = a.createBuffer(1, Math.ceil(a.sampleRate * 0.05), a.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
+  return noise;
+}
+
+// A burst of filtered noise: the snap of a key or a switch.
+function click(freq: number, vol: number, ms = 28) {
+  const a = audio();
+  if (!a) return;
   const t = a.currentTime;
   const src = a.createBufferSource();
   const band = a.createBiquadFilter();
   const gain = a.createGain();
-  src.buffer = noise;
+  src.buffer = noiseOf(a);
   band.type = 'bandpass';
   band.frequency.value = freq;
   band.Q.value = 1.2;
@@ -87,6 +92,29 @@ function click(freq: number, vol: number, ms = 28) {
   src.connect(band).connect(gain).connect(a.destination);
   src.start(t);
   src.stop(t + ms / 1000 + 0.01);
+}
+
+// Noise swept through a moving band: air rushing past.
+function sweep(from: number, to: number, ms: number, vol: number) {
+  const a = audio();
+  if (!a) return;
+  const t = a.currentTime;
+  const end = t + ms / 1000;
+  const src = a.createBufferSource();
+  const band = a.createBiquadFilter();
+  const gain = a.createGain();
+  src.buffer = noiseOf(a);
+  src.loop = true;
+  band.type = 'bandpass';
+  band.Q.value = 1.6;
+  band.frequency.setValueAtTime(from, t);
+  band.frequency.exponentialRampToValueAtTime(to, end);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(vol, t + ms / 3000);
+  gain.gain.exponentialRampToValueAtTime(0.0001, end);
+  src.connect(band).connect(gain).connect(a.destination);
+  src.start(t);
+  src.stop(end + 0.02);
 }
 
 // A note whose pitch wobbles, fast at first and settling: the twang of something elastic.
@@ -199,6 +227,28 @@ export const sfx = {
   },
   // A new cord dropping out of the lamp.
   drop: () => tone(380, 110, { type: 'triangle', vol: 0.09, to: 820 }),
+  // The footer slingshot. Air rushing as the ball leaves, harder the further it was drawn (0 to 1).
+  whoosh: (k = 1) => sweep(450, 2400 + 1200 * k, 160 + 180 * k, 0.08 + 0.22 * k),
+  // The ball hitting something, louder the harder (0 to 1): a low thud off the page's edges, a brighter knock off
+  // things on the page.
+  bump: (k = 1, pitch = 200) => {
+    click(pitch * 4, 0.15 + 0.6 * k, 22);
+    tone(pitch, 80 + 70 * k, { type: 'triangle', vol: 0.04 + 0.12 * k, to: pitch * 0.7 });
+  },
+  // A bug squashed: a wet crunch.
+  squish: () => {
+    click(1500, 0.9, 30);
+    click(400, 0.6, 60);
+    tone(300, 110, { type: 'square', vol: 0.035, to: 80 });
+  },
+  // A target hit: a bell that climbs a step for each bounce the shot took first.
+  ding: (step = 0) => {
+    const f = 784 * 2 ** ([0, 2, 4, 7, 9, 12][Math.min(step, 5)] / 12);
+    tone(f, 420, { vol: 0.12 });
+    tone(f * 2.76, 220, { vol: 0.025 });
+  },
+  // Every target in a round down.
+  cheer: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 190, { type: 'triangle', vol: 0.11, at: i * 70 })),
   toggle: () => {
     click(1800, 0.8, 35);
     tone(740, 60, { type: 'triangle', vol: 0.1 });
