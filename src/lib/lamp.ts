@@ -18,8 +18,9 @@ const GRAVITY = 2400; // px/s²
 
 type P = { x: number; y: number; vx: number; vy: number };
 
-// `flip(at)` switches the theme; `at` is the bulb, in viewport px, for the reveal to spread from.
-export function lamp(wrap: HTMLElement, flip: (at: { x: number; y: number }) => void) {
+// `flip(at, now)` switches the theme; `at` is the bulb, in viewport px, for the reveal to spread from, and `now` asks
+// for no reveal at all: the light just changes, as it does when something knocks the lamp.
+export function lamp(wrap: HTMLElement, flip: (at: { x: number; y: number }, now?: boolean) => void) {
   const btn = wrap.querySelector('button')!;
   const svg = wrap.querySelector<SVGSVGElement>('.rig')!;
   const $ = <T extends SVGElement>(s: string) => svg.querySelector<T>(s)!;
@@ -170,10 +171,10 @@ export function lamp(wrap: HTMLElement, flip: (at: { x: number; y: number }) => 
     raf = requestAnimationFrame(frame);
   }
 
-  const toggle = () => {
+  const toggle = (now = false) => {
     const r = svg.getBoundingClientRect();
     const b = bulb();
-    flip({ x: r.left + r.width / 2 + b.x, y: r.top + b.y });
+    flip({ x: r.left + r.width / 2 + b.x, y: r.top + b.y }, now);
     swing.vs += 90; // the lamp bobs as the switch inside clicks
   };
 
@@ -281,6 +282,35 @@ export function lamp(wrap: HTMLElement, flip: (at: { x: number; y: number }) => 
     toggle();
     swing.va += (Math.random() < 0.5 ? -1 : 1) * 1.2;
     if (!cut) end.vy += 300;
+    wake();
+  });
+
+  // Something thrown at it (the footer's slingshot) sends a `knock` with where it hit and how fast it was going, in
+  // viewport px. The lamp swings away from the blow, or the cord does if that's what was hit, and the light switches
+  // in the same frame.
+  wrap.addEventListener('knock', (e) => {
+    const { x, y, vx, vy } = (e as CustomEvent<{ x: number; y: number; vx: number; vy: number }>).detail;
+    const r = svg.getBoundingClientRect();
+    const px = x - (r.left + r.width / 2);
+    const py = y - r.top;
+    const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+    if (!cut && py > BULB + 8) {
+      // The cord: the knob flies off with the ball's push, and tugs the lamp after it.
+      end.vx += clamp(vx * 0.9, 1400);
+      end.vy += clamp(vy * 0.6, 900);
+      swing.va += clamp(-vx * 0.009, 8);
+    } else {
+      // The shade: turned about the wire's top by the blow, and bounced up or down on the wire.
+      swing.va += clamp((px * vy - py * vx) / (px * px + py * py || 1), 13);
+      swing.vs += clamp(vy * 0.08, 150);
+      if (!cut) {
+        end.vx += clamp(vx * 0.4, 600);
+        end.vy += clamp(vy * 0.3, 500);
+      }
+    }
+    buzz(12);
+    // At once, without the reveal: that would hold the page still for a moment first, and the lamp with it.
+    toggle(true);
     wake();
   });
 

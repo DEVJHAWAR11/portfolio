@@ -19,6 +19,8 @@ const POWER = 27; // launch speed per px of pull: a full pull clears a tall scre
 const STEP = 1 / 240;
 // Buttons and headings bounce the ball; it flies over text and form fields, so the way up stays open.
 const BUMPERS = 'h2, h3, .btn, button';
+// The header's buttons too, apart from the lamp, which is a target of its own.
+const TOP = 'header .mark, header .btn, header button:not(#theme-toggle)';
 
 function make(area: HTMLElement) {
   const footer = area.closest('footer')!;
@@ -80,6 +82,16 @@ function make(area: HTMLElement) {
         if (r.width * r.height > W * H * 0.2) continue;
         boxes.push({ x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height, el });
       }
+    }
+    header(cr);
+  }
+  // The header stays put while the page scrolls under it, so its buttons are measured apart, and again on scroll.
+  let heads: Box[] = [];
+  function header(cr = c.getBoundingClientRect()) {
+    heads = [];
+    for (const el of document.querySelectorAll<HTMLElement>(TOP)) {
+      const r = el.getBoundingClientRect();
+      if (r.width) heads.push({ x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height, el });
     }
   }
   // The lamp's shade and its cord's knob, both worth hitting. Measured once a shot, and again if the page scrolls
@@ -178,7 +190,7 @@ function make(area: HTMLElement) {
       b.vy = b.vy > 140 ? -b.vy * 0.5 : 0;
       b.vx *= 1 - 4 * STEP;
     }
-    for (const k of boxes) {
+    for (const k of [...boxes, ...heads]) {
       const cx = Math.max(k.x, Math.min(b.x, k.x + k.w));
       const cy = Math.max(k.y, Math.min(b.y, k.y + k.h));
       let nx = b.x - cx;
@@ -215,12 +227,19 @@ function make(area: HTMLElement) {
         b.x = o.x + nx * (R + o.r);
         b.y = o.y + ny * (R + o.r);
         const vn = b.vx * nx + b.vy * ny;
+        const was = { x: b.x - nx * R, y: b.y - ny * R, vx: b.vx, vy: b.vy };
         if (vn < 0) {
           b.vx -= 1.8 * vn * nx;
           b.vy -= 1.8 * vn * ny;
         }
         hit = true;
-        if (live) hitLamp();
+        if (live) {
+          if (vn < 0) {
+            squash = 1;
+            squashAt = Math.atan2(ny, nx);
+          }
+          hitLamp(was);
+        }
       }
     }
     if (live)
@@ -237,23 +256,28 @@ function make(area: HTMLElement) {
     return hit;
   }
 
-  // The lamp is worth hitting too. It catches the ball and pulls its switch, and the game holds still while the new
-  // theme spreads over the page, so the switch is as smooth as pulling the cord by hand.
-  function hitLamp() {
+  // The lamp is worth hitting too. The blow swings it (or its cord) and switches the light in the same frame, the
+  // ball holds still for a beat, as hits in games do, then bounces off and carries on.
+  function hitLamp(at: V & { vx: number; vy: number }) {
     if (lit) return;
     lit = true;
     state = 'caught';
     score += 250;
-    sfx.knock(1);
-    lampBtn!.click();
+    const speed = Math.hypot(at.vx, at.vy);
+    sfx.knock(Math.min(1, 0.5 + speed / 3000));
+    const cr = c.getBoundingClientRect();
+    lampBtn?.parentElement!.dispatchEvent(new CustomEvent('knock', { detail: { x: at.x + cr.left, y: at.y + cr.top, vx: at.vx, vy: at.vy } }));
     unlock('lamp');
+    pops.push({ x: Math.min(Math.max(at.x, 60), W - 60), y: at.y + 50, t: performance.now(), text: 'Lights! +250' });
     hud();
+    // Hit once, it's out of the way: the lamp swings off, so the spot it was in is no longer something to hit.
+    lampAt = [];
     setTimeout(() => {
-      const L = lampAt[0];
-      if (L) pops.push({ x: Math.min(L.x, W - 60), y: L.y + 44, t: performance.now(), text: 'Lights! +250' });
-      settle();
+      if (state !== 'caught') return;
+      state = 'fly';
+      prev = 0; // the pause isn't flight time
       wake();
-    }, 450);
+    }, 70);
   }
 
   function fire() {
@@ -276,7 +300,15 @@ function make(area: HTMLElement) {
     hud();
     wake();
   }
-  addEventListener('scroll', () => state === 'fly' && (lampAt = lamp()), { passive: true });
+  addEventListener(
+    'scroll',
+    () => {
+      if (state !== 'fly') return;
+      if (!lit) lampAt = lamp();
+      header();
+    },
+    { passive: true },
+  );
 
   // The ball has stopped: count up, then load the next one.
   function settle() {
